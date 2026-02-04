@@ -16,26 +16,40 @@ const QRScannerModal: React.FC<QRScannerModalProps> = ({ onScanSuccess, onClose 
     const html5QrCode = new Html5Qrcode("reader");
     scannerRef.current = html5QrCode;
     
+    const config = {
+      fps: 10,
+      qrbox: { width: 250, height: 250 },
+      aspectRatio: window.innerWidth / window.innerHeight
+    };
+
+    const onScan = (decodedText: string) => {
+       handleStopAndClose(() => onScanSuccess(decodedText));
+    };
+
     const startScanner = async () => {
       try {
-        await html5QrCode.start(
-          { facingMode: "environment" },
-          {
-            fps: 10,
-            qrbox: { width: 250, height: 250 },
-            aspectRatio: window.innerWidth / window.innerHeight
-          },
-          (decodedText) => {
-            // Sucesso no scan: Para o scanner e chama o callback
-            handleStopAndClose(() => onScanSuccess(decodedText));
-          },
-          (errorMessage) => {
-            // Ignorar erros de frames vazios
-          }
-        );
+        // 1. Tenta câmera traseira (Environment)
+        await html5QrCode.start({ facingMode: "environment" }, config, onScan, () => {});
       } catch (err) {
-        setError("Erro ao acessar a câmera. Verifique as permissões ou se o dispositivo possui câmera.");
-        console.error(err);
+        console.warn("Erro ao iniciar câmera traseira (environment), tentando fallback...", err);
+        try {
+            // 2. Fallback: Tenta câmera frontal (User)
+            await html5QrCode.start({ facingMode: "user" }, config, onScan, () => {});
+        } catch (err2) {
+            console.warn("Erro ao iniciar câmera frontal (user), tentando qualquer câmera...", err2);
+            try {
+                // 3. Última tentativa: Sem constraints de facingMode (pega a primeira disponível)
+                const cameras = await Html5Qrcode.getCameras();
+                if (cameras && cameras.length > 0) {
+                    await html5QrCode.start(cameras[0].id, config, onScan, () => {});
+                } else {
+                    throw new Error("Nenhuma câmera detectada.");
+                }
+            } catch (err3) {
+                setError("Não foi possível acessar a câmera. Verifique se o dispositivo possui câmera e se a permissão foi concedida.");
+                console.error(err3);
+            }
+        }
       }
     };
 

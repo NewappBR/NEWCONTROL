@@ -54,24 +54,29 @@ const getDuration = (startStr: string) => {
     return `${hours}h ${mins}m`;
 };
 
-// --- SUB-COMPONENT: Scroll Button (Inner Column) ---
+// --- SUB-COMPONENT: Scroll Button (Subtle & Correctly Positioned) ---
 const ScrollToTopButton = ({ containerRef }: { containerRef: React.RefObject<HTMLDivElement> }) => {
     const [visible, setVisible] = useState(false);
-    
     useEffect(() => {
         const el = containerRef.current;
         if (!el) return;
-        const handleScroll = () => setVisible(el.scrollTop > 100);
+        const handleScroll = () => setVisible(el.scrollTop > 300);
         el.addEventListener('scroll', handleScroll);
         return () => el.removeEventListener('scroll', handleScroll);
     }, [containerRef]);
 
-    if (!visible) return null;
-
     return (
         <button 
             onClick={() => containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="absolute bottom-4 right-4 bg-slate-900/50 dark:bg-white/20 hover:bg-emerald-500 text-white p-2 rounded-full shadow-lg backdrop-blur-sm transition-all z-20 animate-in fade-in zoom-in"
+            className={`
+                absolute bottom-3 right-3 z-30
+                w-8 h-8 rounded-full flex items-center justify-center
+                bg-white/90 dark:bg-slate-800/90 text-slate-400 hover:text-emerald-500
+                shadow-sm border border-slate-200 dark:border-slate-700
+                hover:border-emerald-500 hover:shadow-md
+                transition-all duration-300 ease-out active:scale-95
+                ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}
+            `}
             title="Voltar ao Topo"
         >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 10l7-7m0 0l7 7m-7-7v18" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -109,7 +114,7 @@ const KanbanColumn = ({ col, groups, isLocked, isMySector, isCollapsed, mobileSe
         );
     }
     return (
-        <div className={`${widthClass} flex-shrink-0 flex flex-col h-full md:rounded-t-2xl border-x border-t border-b-0 ${bgClass} transition-all duration-300 relative`}>
+        <div className={`${widthClass} flex-shrink-0 flex flex-col h-full md:rounded-t-2xl border-x border-t border-b-0 ${bgClass} transition-all duration-300 relative group/column`}>
             <div className={`p-3 border-b border-inherit flex justify-between items-center md:rounded-t-2xl ${isMySector ? 'bg-emerald-100/50 dark:bg-emerald-900/30' : ''}`}>
                 <div className="flex items-center gap-3">
                     <button onClick={() => handleFocusColumn(col.id)} className={`p-1.5 rounded-full transition-all ${mobileSelectedCol === col.id ? 'bg-blue-500 text-white animate-pulse' : 'text-slate-400 hover:text-blue-500 hover:bg-blue-50'}`} title={mobileSelectedCol ? "Sair do Foco" : "Focar nesta Coluna"}>
@@ -136,6 +141,9 @@ const KanbanColumn = ({ col, groups, isLocked, isMySector, isCollapsed, mobileSe
                     else if (group.items.some((i: any) => i.prioridade === 'Média')) priorityBorderClass = 'border-l-blue-400';
                     const isLate = group.items.some((i: any) => !i.isArchived && i.dataEntrega < new Date().toLocaleDateString('en-CA'));
 
+                    // Unique references in group for summary
+                    const uniqueRefs = Array.from(new Set(group.items.map((i: any) => i.numeroItem))).filter(Boolean);
+
                     if (!isMultiItem) { return (<div key={group.or}>{group.items.map((item: any) => renderCard(item, col, isLocked))}</div>); }
 
                     return (
@@ -156,10 +164,24 @@ const KanbanColumn = ({ col, groups, isLocked, isMySector, isCollapsed, mobileSe
                                         <p className="text-[10px] font-black text-slate-800 dark:text-white uppercase truncate">{firstItem.cliente}</p>
                                         <p className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-0.5">Vendedor: {firstItem.vendedor.split(' ')[0]}</p>
                                     </div>
+                                    
+                                    {/* Summary of Items/Refs when collapsed */}
                                     {!isGroupExpanded && (
-                                        <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                                            <span className="text-[8px] font-bold text-slate-400 uppercase">Clique para ver itens</span>
-                                            <div className="flex -space-x-1">{group.items.slice(0,3).map((i:any, idx:number) => (<div key={idx} className="w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-700 border border-white dark:border-slate-800 flex items-center justify-center text-[6px] font-black text-slate-500">{idx+1}</div>))}{group.items.length > 3 && <div className="w-4 h-4 rounded-full bg-slate-100 dark:bg-slate-800 border border-white dark:border-slate-800 flex items-center justify-center text-[6px] font-black text-slate-400">+</div>}</div>
+                                        <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                            {uniqueRefs.length > 0 ? (
+                                                <div className="flex flex-wrap gap-1 mb-1">
+                                                    {uniqueRefs.slice(0, 3).map((ref: any, idx: number) => (
+                                                        <span key={idx} className="text-[8px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-1.5 rounded border border-slate-200 dark:border-slate-700">REF {ref}</span>
+                                                    ))}
+                                                    {uniqueRefs.length > 3 && <span className="text-[8px] font-bold text-slate-400">+{uniqueRefs.length - 3}</span>}
+                                                </div>
+                                            ) : (
+                                                <span className="text-[8px] font-bold text-slate-400 uppercase">Clique para ver itens</span>
+                                            )}
+                                            <div className="flex items-center justify-between mt-1">
+                                                <div className="flex -space-x-1">{group.items.slice(0,3).map((i:any, idx:number) => (<div key={idx} className="w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-700 border border-white dark:border-slate-800 flex items-center justify-center text-[6px] font-black text-slate-500">{idx+1}</div>))}{group.items.length > 3 && <div className="w-4 h-4 rounded-full bg-slate-100 dark:bg-slate-800 border border-white dark:border-slate-800 flex items-center justify-center text-[6px] font-black text-slate-400">+</div>}</div>
+                                                <span className="text-[8px] font-black text-emerald-600 dark:text-emerald-400 uppercase">Ver Todos</span>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -169,8 +191,9 @@ const KanbanColumn = ({ col, groups, isLocked, isMySector, isCollapsed, mobileSe
                         </div>
                     );
                 })}
-                <ScrollToTopButton containerRef={columnRef} />
             </div>
+            {/* ScrollToTopButton placed OUTSIDE the scrollable area, positioned absolute to the column container */}
+            <ScrollToTopButton containerRef={columnRef} />
         </div>
     );
 };
@@ -186,7 +209,6 @@ const KanbanView = forwardRef<KanbanViewHandle, KanbanViewProps>(({
     users = [],
     onAssignUser
 }, ref) => {
-  // ... (State logic kept same) ...
   const [searchTerm, setSearchTerm] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<'ALL' | 'Alta' | 'Média' | 'Baixa'>('ALL');
   const [adminSelectedSector, setAdminSelectedSector] = useState<ProductionStep>(
@@ -234,7 +256,6 @@ const KanbanView = forwardRef<KanbanViewHandle, KanbanViewProps>(({
       if (searchTerm.trim().length > 0 && viewMode === 'BOARD') { setCollapsedColumns({}); setFocusedColumnId('all'); }
   }, [searchTerm, viewMode]);
 
-  // Columns definition (same as before)
   const boardColumns: { id: string; label: string; step?: ProductionStep }[] = [
     { id: 'design', label: '1. Design', step: 'preImpressao' },
     { id: 'print', label: '2. Impressão', step: 'impressao' },
@@ -249,7 +270,6 @@ const KanbanView = forwardRef<KanbanViewHandle, KanbanViewProps>(({
   ];
   const activeColumns = viewMode === 'MY_TASKS' ? myTaskColumns : boardColumns;
 
-  // Grouped Data Memo (Same logic)
   const groupedData = useMemo(() => {
     if (viewMode === 'TEAM') return {}; 
     const data: Record<string, { or: string; client: string; items: Order[] }[]> = {};
@@ -272,7 +292,11 @@ const KanbanView = forwardRef<KanbanViewHandle, KanbanViewProps>(({
                 const status = order[step];
                 const isMyStep = assignment?.userId === currentUser.id;
                 if (isMyStep && status !== 'Concluído') {
+                    // Logic Update: 
+                    // To be in "in_progress", status must be 'Em Produção' (or have startedAt).
+                    // If assigned but status is 'Pendente', it goes to 'pending'.
                     const targetCol = (status === 'Em Produção' || assignment.startedAt) ? 'in_progress' : 'pending';
+                    
                     let existingGroup = data[targetCol].find(g => g.or === order.or);
                     if (!existingGroup) { existingGroup = { or: order.or, client: order.cliente, items: [] }; data[targetCol].push(existingGroup); }
                     if (!existingGroup.items.find(i => i.id === order.id)) { existingGroup.items.push(order); }
@@ -307,7 +331,6 @@ const KanbanView = forwardRef<KanbanViewHandle, KanbanViewProps>(({
     return data;
   }, [orders, searchTerm, viewMode, currentUser, activeColumns, priorityFilter]);
 
-  // Actions (Same logic)
   const handleProcessStep = (e: React.MouseEvent, order: Order, step?: ProductionStep) => {
       e.stopPropagation();
       if (viewMode === 'MY_TASKS') {
@@ -315,6 +338,7 @@ const KanbanView = forwardRef<KanbanViewHandle, KanbanViewProps>(({
           const targetStep = steps.find(s => order.assignments?.[s]?.userId === currentUser?.id && order[s] !== 'Concluído');
           if (targetStep) {
               const currentStatus = order[targetStep];
+              // Workflow: Pendente (Start) -> Em Produção (Working) -> Concluído (Done)
               if (currentStatus === 'Pendente') { onUpdateStatus(order.id, targetStep, 'Em Produção'); } 
               else if (currentStatus === 'Em Produção') { onUpdateStatus(order.id, targetStep, 'Concluído'); }
           }
@@ -337,7 +361,7 @@ const KanbanView = forwardRef<KanbanViewHandle, KanbanViewProps>(({
       setMinimizedItems(prev => { const currentVal = prev[itemId]; return { ...prev, [itemId]: currentVal === undefined ? false : !currentVal }; }); 
   };
   const toggleColumnCollapse = (colId: string) => { setCollapsedColumns(prev => ({ ...prev, [colId]: !prev[colId] })); };
-  const toggleColumnCards = (colId: string) => {
+  const onToggleColumnCards = (colId: string) => {
       const itemsInColumn = groupedData[colId]?.flatMap(g => g.items) || [];
       if (itemsInColumn.length === 0) return;
       const newMinimizedState = { ...minimizedItems };
@@ -358,9 +382,7 @@ const KanbanView = forwardRef<KanbanViewHandle, KanbanViewProps>(({
   useImperativeHandle(ref, () => ({ switchToMyTasks: () => { setViewMode('MY_TASKS'); }, expandAll: handleExpandAll, collapseAll: handleCollapseAll }));
   const canAssign = (step?: ProductionStep) => { if (!currentUser || !step) return false; if (currentUser.role === 'Admin') return true; return currentUser.isLeader === true && (currentUser.departamento === 'Geral' || currentUser.departamento === step); };
 
-  // Render Card (Same logic used for Board/My Tasks)
   const renderCard = (item: Order, col: { id: string; step?: ProductionStep }, isLocked: boolean) => {
-        // ... (Render logic remains identical to previous provided KanbanView, omitting for brevity in this specific update block but keeping functionality)
         const isExpanded = expandedItems[item.id];
         const attachmentsCount = item.attachments?.length || 0;
         let currentStatus: Status = 'Pendente';
@@ -380,14 +402,30 @@ const KanbanView = forwardRef<KanbanViewHandle, KanbanViewProps>(({
         const userPreference = minimizedItems[item.id];
         const defaultMinimizedState = viewMode === 'BOARD' ? isAssigned : false;
         const isMinimized = userPreference !== undefined ? userPreference : defaultMinimizedState;
+        
         let priorityBorderClass = 'border-l-slate-300';
         if (item.prioridade === 'Alta') priorityBorderClass = 'border-l-red-500';
         else if (item.prioridade === 'Média') priorityBorderClass = 'border-l-blue-400';
-        else priorityBorderClass = 'border-l-slate-300';
+        
         let actionIcon = null; let actionClass = ""; let actionTitle = ""; let buttonLabel = "";
-        if (isLocked && viewMode !== 'MY_TASKS') { actionIcon = <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" strokeWidth="2.5"/></svg>; actionClass = "bg-slate-50 text-slate-300 cursor-not-allowed border-slate-100 dark:bg-slate-800 dark:text-slate-600 dark:border-slate-700"; actionTitle = "Apenas setor responsável pode alterar"; } 
-        else if (isPending) { actionIcon = <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" strokeWidth="2.5"/><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" strokeWidth="2"/></svg>; actionClass = "bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white border-blue-200 dark:bg-blue-900/20 dark:text-blue-400"; actionTitle = "Iniciar Trabalho"; buttonLabel = "Iniciar"; } 
-        else if (isInProgress) { actionIcon = <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" strokeWidth="3"/></svg>; actionClass = "bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 animate-pulse"; actionTitle = "Finalizar"; buttonLabel = "Concluir"; }
+        
+        if (isLocked && viewMode !== 'MY_TASKS') { 
+            actionIcon = <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" strokeWidth="2.5"/></svg>; 
+            actionClass = "bg-slate-50 text-slate-300 cursor-not-allowed border-slate-100 dark:bg-slate-800 dark:text-slate-600 dark:border-slate-700"; 
+            actionTitle = "Apenas setor responsável pode alterar"; 
+        } 
+        else if (isPending) { 
+            actionIcon = <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" strokeWidth="2.5"/><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" strokeWidth="2"/></svg>; 
+            actionClass = "bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white border-blue-200 dark:bg-blue-900/20 dark:text-blue-400"; 
+            actionTitle = "Iniciar Trabalho"; 
+            buttonLabel = "INICIAR"; 
+        } 
+        else if (isInProgress) { 
+            actionIcon = <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" strokeWidth="3"/></svg>; 
+            actionClass = "bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 animate-pulse"; 
+            actionTitle = "Finalizar"; 
+            buttonLabel = "CONCLUIR"; 
+        }
 
         if (isMinimized) {
             return (
@@ -397,7 +435,7 @@ const KanbanView = forwardRef<KanbanViewHandle, KanbanViewProps>(({
                     className={`group/item transition-all border-l-[4px] rounded-r-lg mb-2 shadow-sm relative overflow-hidden flex flex-col shrink-0 cursor-pointer bg-white dark:bg-slate-900 ${priorityBorderClass} ${assignment ? 'bg-blue-50/10' : 'border-slate-300 dark:border-slate-700'} ${isInProgress ? 'bg-amber-50/30 dark:bg-amber-900/10' : ''}`}
                 >
                     <div className="p-2.5 flex flex-col gap-1.5 relative">
-                        {isInProgress && assignment?.startedAt && (<div className="absolute top-1 right-7 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-[8px] font-black px-1.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800 shadow-sm flex items-center gap-0.5 z-10"><svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" strokeWidth="2.5"/></svg>{getDuration(assignment.startedAt)}</div>)}
+                        {isInProgress && assignment?.startedAt && (<div className="absolute top-1 right-7 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-[8px] font-black px-1.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800 shadow-sm flex items-center gap-0.5 z-10 animate-pulse"><svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" strokeWidth="2.5"/></svg>{getDuration(assignment.startedAt)}</div>)}
                         <div className="flex items-center justify-between"><div className="flex items-center gap-2 overflow-hidden"><span className="text-xs font-[950] text-emerald-600 dark:text-emerald-400 shrink-0">#{item.or}</span><div className="text-slate-400 p-0.5 ml-auto"><svg className="w-3.5 h-3.5 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></div></div></div>
                         <div className="flex flex-col gap-0.5"><span className="text-[10px] font-black text-slate-800 dark:text-slate-200 uppercase truncate leading-tight" title={item.cliente}>{item.cliente}</span><span className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 uppercase leading-tight line-clamp-2" title={item.item}>{item.item}</span></div>
                         <div className="flex items-center gap-2 mt-1 flex-wrap pt-1 border-t border-slate-50 dark:border-slate-800">{item.numeroItem && (<span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded text-[8px] font-black border border-slate-200 dark:border-slate-700">REF {item.numeroItem}</span>)}<span className="bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded text-[8px] font-black border border-blue-100 dark:border-blue-800">{item.quantidade} UN</span><span className={`px-1.5 py-0.5 rounded border text-[8px] ${getDateColorClass(item.dataEntrega, item.isArchived)}`}>{item.dataEntrega.split('-').reverse().join('/')}</span>{isLate && <span className="bg-red-500 text-white px-1.5 py-0.5 rounded animate-pulse text-[8px] font-bold">!</span>}</div>
@@ -415,29 +453,48 @@ const KanbanView = forwardRef<KanbanViewHandle, KanbanViewProps>(({
                 {viewMode === 'MY_TASKS' && relevantStep && (currentUser?.role === 'Admin' || currentUser?.isLeader) && (<div className="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-2 py-1 flex justify-between items-center"><span className="text-[7px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">{DEPARTMENTS[relevantStep]}</span>{isLate && <span className="text-[7px] font-black text-red-500 uppercase animate-pulse">Atrasado</span>}</div>)}
                 {isNewAssignmentForMe && (<div className="bg-blue-500 text-white text-[8px] font-black uppercase px-2 py-0.5 w-full text-center tracking-widest animate-pulse shrink-0">Nova Atribuição - Iniciar</div>)}
                 <div className="flex flex-col p-2.5 bg-white dark:bg-slate-900 rounded-r-lg flex-1 relative">
-                    {isInProgress && assignment?.startedAt && (<div className="absolute top-2 right-8 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-[9px] font-black px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-800 shadow-sm animate-pulse flex items-center gap-1 z-10"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" strokeWidth="2.5"/></svg>{getDuration(assignment.startedAt)}</div>)}
-                    <div className="flex justify-between items-start mb-1.5 gap-2 pr-6"><span className="text-sm font-[950] text-emerald-600 dark:text-emerald-400 leading-none tracking-tight">#{item.or}</span><div className="flex flex-wrap items-center justify-end gap-1 absolute top-2 right-2"><div className="p-0.5 text-slate-300 ml-1"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></div></div></div>
-                    <p className="text-[10px] font-black text-slate-800 dark:text-white uppercase truncate mb-1 pr-4" title={item.cliente}>{item.cliente}</p>
-                    <div className="flex items-center gap-1.5 flex-wrap mb-2">{item.numeroItem && <span className="text-[8px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">REF {item.numeroItem}</span>}<span className="text-[8px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">{item.quantidade} UN</span><span className={`text-xs px-1.5 py-0.5 rounded border ${getDateColorClass(item.dataEntrega, item.isArchived)}`}>{item.dataEntrega.split('-').reverse().join('/')}</span>{item.prioridade === 'Alta' && <span className="text-[7px] font-black bg-red-100 text-red-600 px-1.5 py-0.5 rounded uppercase border border-red-200">Alta</span>}</div>
+                    {isInProgress && assignment?.startedAt && (
+                        <div className="absolute top-2 right-8 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-[9px] font-black px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-800 shadow-sm animate-pulse flex items-center gap-1 z-10">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" strokeWidth="2.5"/></svg>
+                            {getDuration(assignment.startedAt)}
+                        </div>
+                    )}
+                    <div className="flex justify-between items-start mb-1.5 gap-2 pr-6">
+                        <span className="text-sm font-[950] text-emerald-600 dark:text-emerald-400 leading-none tracking-tight">#{item.or}</span>
+                        <div className="flex flex-wrap items-center justify-end gap-1 absolute top-2 right-2">
+                            <div className="p-0.5 text-slate-300 ml-1">
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            </div>
+                        </div>
+                    </div>
+                    <p className="text-[10px] font-black text-slate-800 dark:text-white uppercase truncate mb-1 pr-4">{item.cliente}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                        {item.numeroItem && <span className="text-[8px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">REF {item.numeroItem}</span>}
+                        <span className="text-[8px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">{item.quantidade} UN</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded border ${getDateColorClass(item.dataEntrega, item.isArchived)}`}>{item.dataEntrega.split('-').reverse().join('/')}</span>
+                        {item.prioridade === 'Alta' && <span className="text-[7px] font-black bg-red-100 text-red-600 px-1.5 py-0.5 rounded uppercase border border-red-200">Alta</span>}
+                    </div>
                     <div className={`text-[9px] text-slate-600 dark:text-slate-300 uppercase leading-snug font-medium mb-2 ${isExpanded ? '' : 'line-clamp-2'}`} title={item.item}>{item.item}</div>
-                    {(assignment || (relevantStep && canAssign(relevantStep) && !isDone && viewMode !== 'MY_TASKS')) && (
-                        <div className="mt-auto pt-2 border-t border-slate-50 dark:border-slate-800 flex items-center justify-between gap-2 mb-2">
-                            {assignment ? (
-                                <div className="flex items-start gap-2 bg-slate-50 dark:bg-slate-800/50 p-1.5 rounded-lg border border-slate-100 dark:border-slate-700 flex-1 min-w-0 group/assign hover:border-blue-200 dark:hover:border-blue-800 transition-colors cursor-default">
-                                    <div className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-[8px] font-black uppercase shrink-0 shadow-sm">{getInitials(assignment.userName)}</div>
-                                    <div className="flex-1 min-w-0"><p className="text-[8px] font-black text-slate-700 dark:text-slate-300 truncate leading-tight">{assignment.userName.split(' ')[0]}</p>{assignment.note ? (<p className="text-[7px] text-slate-400 dark:text-slate-500 truncate italic leading-tight" title={assignment.note}>"{assignment.note}"</p>) : (<p className="text-[7px] text-slate-300 dark:text-slate-600 uppercase leading-tight">Designado</p>)}</div>
-                                    {relevantStep && canAssign(relevantStep) && viewMode !== 'MY_TASKS' && (<button onClick={(e) => handleOpenAssignment(e, item.id, relevantStep)} className="text-slate-300 hover:text-blue-500 opacity-0 group-hover/assign:opacity-100 transition-opacity" title="Editar Atribuição"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" strokeWidth="2"/></svg></button>)}
+                    
+                    <div className="mt-auto pt-2 border-t border-slate-50 dark:border-slate-800 flex items-center justify-between gap-2 mb-2">
+                        {assignment ? (
+                            <div className="flex items-start gap-2 bg-slate-50 dark:bg-slate-800/50 p-1.5 rounded-lg border border-slate-100 dark:border-slate-700 flex-1 min-w-0">
+                                <div className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-[8px] font-black uppercase shrink-0 shadow-sm">{getInitials(assignment.userName)}</div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-[8px] font-black text-slate-700 dark:text-slate-300 truncate leading-tight">{relevantStep ? DEPARTMENTS[relevantStep].split(' ')[0] : 'Tarefa'}</p>
+                                    <p className="text-[7px] text-slate-400 dark:text-slate-500 truncate italic leading-tight">{assignment.note || 'Designado'}</p>
                                 </div>
-                            ) : (relevantStep && canAssign(relevantStep) && (<button onClick={(e) => handleOpenAssignment(e, item.id, relevantStep)} className="flex items-center gap-1 text-[8px] font-bold text-slate-400 hover:text-blue-500 bg-slate-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-2 py-1.5 rounded-lg transition-colors border border-dashed border-slate-300 dark:border-slate-700 w-full justify-center group"><svg className="w-3 h-3 text-slate-300 group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" strokeWidth="2"/></svg>DESIGNAR</button>))}
-                        </div>
-                    )}
-                    {isExpanded && (
-                        <div className="mt-2 space-y-2 animate-in slide-in-from-top-1 border-t border-slate-50 dark:border-slate-800 pt-2 mb-2">
-                            {item.filePath && <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded border border-blue-100 dark:border-blue-800 break-all"><span className="font-black text-[8px] text-blue-600 dark:text-blue-400 uppercase block mb-0.5">Arquivo Principal</span><p className="text-slate-700 dark:text-slate-300 font-mono text-[8px]">{item.filePath}</p></div>}
-                            {item.filePaths && item.filePaths.length > 0 && <div className="space-y-1">{item.filePaths.map((fp, idx) => <div key={idx} className="bg-slate-50 dark:bg-slate-800 p-1.5 rounded border border-slate-100 dark:border-slate-700 flex flex-col"><span className="text-[7px] font-black text-slate-400 uppercase">{fp.name || 'Caminho'}</span><span className="text-[8px] font-mono text-slate-600 dark:text-slate-300 break-all">{fp.path}</span></div>)}</div>}
-                            <div className="text-[8px] text-slate-400 flex justify-between"><span>Vendedor: <span className="font-bold text-slate-600 dark:text-slate-300">{item.vendedor}</span></span></div>
-                        </div>
-                    )}
+                            </div>
+                        ) : (
+                            relevantStep && (
+                              <button onClick={(e) => handleOpenAssignment(e, item.id, relevantStep)} className="flex items-center gap-1 text-[8px] font-bold text-slate-400 hover:text-blue-500 bg-slate-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-2 py-1.5 rounded-lg transition-colors border border-dashed border-slate-300 dark:border-slate-700 w-full justify-center group">
+                                  <svg className="w-3 h-3 text-slate-300 group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" strokeWidth="2"/></svg>
+                                  {relevantStep ? `DESIGNAR ${DEPARTMENTS[relevantStep].split(' ')[0]}` : 'DESIGNAR'}
+                              </button>
+                            )
+                        )}
+                    </div>
+
                     <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-100 dark:border-slate-800">
                         <div className="flex items-center gap-0.5">
                             <button onClick={(e) => { e.stopPropagation(); onShowAttachment(item); }} className={`p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${attachmentsCount > 0 ? 'text-blue-500' : 'text-slate-300 dark:text-slate-600'}`}><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" strokeWidth="2"/></svg></button>
@@ -467,48 +524,85 @@ const KanbanView = forwardRef<KanbanViewHandle, KanbanViewProps>(({
 
   return (
     <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900/50 relative overflow-hidden">
-      {/* Top Bar and Sub-Toolbar ... (Keep existing layout) */}
+      
+      {/* HEADER & CONTROLS */}
       <div className="shrink-0 px-4 py-3 flex flex-col md:flex-row gap-4 items-center justify-between bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 z-10 shadow-sm">
-          {/* ... */}
           <div className="flex items-center gap-3 w-full md:w-auto flex-1">
-              <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex shrink-0">
-                  <button onClick={() => setViewMode('BOARD')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${viewMode === 'BOARD' ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600'}`}>Quadro (Fluxo)</button>
-                  <button onClick={() => setViewMode('MY_TASKS')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-2 ${viewMode === 'MY_TASKS' ? 'bg-white dark:bg-slate-600 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600'}`}>Meus Trabalhos {(viewMode === 'MY_TASKS' || myPendingCount > 0) && (<div className={`w-4 h-4 text-[8px] flex items-center justify-center rounded-full ${myPendingCount > 0 ? 'bg-red-500 text-white animate-pulse' : 'bg-emerald-500 text-white'}`}>{myPendingCount > 0 ? myPendingCount : ''}</div>)}</button>
-                  {canAccessTeamView && (<button onClick={() => setViewMode('TEAM')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-2 ${viewMode === 'TEAM' ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600'}`}>Gestão de Equipe</button>)}
+              <div>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Fluxo de Produção</h2>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[2px] mt-0.5">
+                      {viewMode === 'BOARD' ? 'Visão Geral' : viewMode === 'MY_TASKS' ? 'Minhas Tarefas' : 'Gestão de Equipe'}
+                  </p>
               </div>
-              <div className="flex items-center gap-2 w-full md:w-auto flex-1 justify-end">
-                  {viewMode !== 'TEAM' && (<div className="relative w-full md:w-64"><input type="text" placeholder="Buscar Ref, O.R, Cliente..." className="w-full pl-9 pr-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold uppercase outline-none focus:ring-2 ring-emerald-500 transition-all dark:text-white" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /><svg className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth="2.5"/></svg></div>)}
+              
+              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl shadow-sm gap-1 ml-4">
+                  <button onClick={() => setViewMode('BOARD')} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${viewMode === 'BOARD' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>Geral</button>
+                  <button onClick={() => setViewMode('MY_TASKS')} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all flex items-center gap-2 ${viewMode === 'MY_TASKS' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>
+                      Minhas
+                      {myPendingCount > 0 && <span className="bg-red-500 text-white text-[7px] px-1.5 rounded-full">{myPendingCount}</span>}
+                  </button>
+                  {canAccessTeamView && (
+                      <button onClick={() => setViewMode('TEAM')} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${viewMode === 'TEAM' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>Equipe</button>
+                  )}
               </div>
           </div>
       </div>
 
+      {/* TOOLBAR (DARK THEME as requested) */}
       {viewMode !== 'TEAM' && (
-          <div className="px-4 py-2 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar">
-                  {/* ... (Existing toolbar content) ... */}
-                  <span className="text-[9px] font-bold text-slate-400 uppercase hidden sm:block">Prioridade:</span>
-                  {(['ALL', 'Alta', 'Média', 'Baixa'] as const).map(p => (
-                      <button key={p} onClick={() => setPriorityFilter(p)} className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase border transition-all whitespace-nowrap ${priorityFilter === p ? 'bg-slate-800 text-white border-slate-800 dark:bg-white dark:text-slate-900' : 'bg-white dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700 hover:border-slate-400'}`}>{p === 'ALL' ? 'Todas' : p}</button>
-                  ))}
-                  <div className="w-px h-4 bg-slate-300 dark:bg-slate-700 mx-2 hidden sm:block"></div>
-                  <button onClick={handleExpandAllCards} className="px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-500 hover:text-emerald-500 transition-colors text-[9px] font-black uppercase whitespace-nowrap">Expandir Cards</button>
-                  <button onClick={handleCollapseAllCards} className="px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-500 hover:text-emerald-500 transition-colors text-[9px] font-black uppercase whitespace-nowrap">Recolher Cards</button>
-                  <div className="w-px h-4 bg-slate-300 dark:bg-slate-700 mx-2 hidden sm:block"></div>
-                  <button onClick={handleExpandAll} className="px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-500 hover:text-emerald-500 transition-colors text-[9px] font-black uppercase whitespace-nowrap">Exp. Colunas</button>
-                  <button onClick={handleCollapseAll} className="px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-500 hover:text-emerald-500 transition-colors text-[9px] font-black uppercase whitespace-nowrap">Rec. Colunas</button>
-              </div>
-              <div className="hidden md:flex items-center gap-1">
-                  <button onClick={scrollBoardLeft} className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-400 hover:text-emerald-500 hover:border-emerald-500 transition-all shadow-sm active:scale-95"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
-                  <button onClick={scrollBoardRight} className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-400 hover:text-emerald-500 hover:border-emerald-500 transition-all shadow-sm active:scale-95"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
-              </div>
-          </div>
+        <div className="px-4 py-2 bg-slate-900 border-b border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4 shrink-0 z-20 shadow-md">
+            {/* Left: Search */}
+            <div className="relative min-w-[200px] w-full md:w-auto">
+                <input 
+                    type="text" 
+                    placeholder="Buscar Ref, O.R, Cliente..." 
+                    className="w-full pl-9 pr-4 py-1.5 bg-slate-800 rounded-lg text-xs font-bold uppercase outline-none focus:ring-1 ring-emerald-500 text-white placeholder-slate-500" 
+                    value={searchTerm} 
+                    onChange={e => setSearchTerm(e.target.value)} 
+                />
+                <svg className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth="2.5"/></svg>
+            </div>
+
+            <div className="w-px h-6 bg-slate-700 hidden md:block"></div>
+
+            {/* Center: Priority */}
+            <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar w-full md:w-auto">
+                <span className="text-[9px] font-bold text-slate-500 uppercase whitespace-nowrap">Prioridade:</span>
+                <div className="flex bg-slate-800 rounded-lg p-0.5">
+                    {(['ALL', 'Alta', 'Média', 'Baixa'] as const).map(p => (
+                        <button 
+                            key={p} 
+                            onClick={() => setPriorityFilter(p)} 
+                            className={`px-3 py-1 rounded-md text-[9px] font-black uppercase transition-all whitespace-nowrap ${priorityFilter === p ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                        >
+                            {p === 'ALL' ? 'TODAS' : p}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            <div className="w-px h-6 bg-slate-700 hidden md:block"></div>
+
+            {/* Right: Actions */}
+            <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar w-full md:w-auto justify-end">
+                <div className="flex gap-1">
+                    <button onClick={handleExpandAllCards} className="px-3 py-1 bg-slate-800 border border-slate-700 rounded-lg text-slate-400 hover:text-emerald-400 hover:border-emerald-500/50 transition-all text-[8px] font-black uppercase whitespace-nowrap">Exp. Cards</button>
+                    <button onClick={handleCollapseAllCards} className="px-3 py-1 bg-slate-800 border border-slate-700 rounded-lg text-slate-400 hover:text-emerald-400 hover:border-emerald-500/50 transition-all text-[8px] font-black uppercase whitespace-nowrap">Rec. Cards</button>
+                </div>
+                <div className="flex gap-1">
+                    <button onClick={handleExpandAll} className="px-3 py-1 bg-slate-800 border border-slate-700 rounded-lg text-slate-400 hover:text-emerald-400 hover:border-emerald-500/50 transition-all text-[8px] font-black uppercase whitespace-nowrap">Exp. Grupos</button>
+                    <button onClick={handleCollapseAll} className="px-3 py-1 bg-slate-800 border border-slate-700 rounded-lg text-slate-400 hover:text-emerald-400 hover:border-emerald-500/50 transition-all text-[8px] font-black uppercase whitespace-nowrap">Rec. Grupos</button>
+                </div>
+            </div>
+        </div>
       )}
 
+      {/* Main Board Area */}
       {viewMode === 'TEAM' ? (
           <ManagementView 
             orders={orders}
             users={users}
-            currentUser={currentUser || { id: 'guest', nome: 'Guest', email: '', role: 'Operador', departamento: 'Geral' }}
+            currentUser={currentUser!}
             onAssignUser={(orderId, step) => setAssignmentModal({ isOpen: true, orderId, step })}
             onEditOrder={onEditOrder}
             onShowQR={onShowQR}
@@ -516,39 +610,46 @@ const KanbanView = forwardRef<KanbanViewHandle, KanbanViewProps>(({
             onShowTechSheet={onShowTechSheet}
           />
       ) : (
-          <div ref={boardContainerRef} className={`flex-1 flex overflow-x-auto overflow-y-hidden px-0 pt-0 md:px-4 md:pt-4 pb-0 gap-3 md:gap-4 custom-scrollbar items-stretch bg-slate-50/50 dark:bg-slate-900/50 scroll-smooth`}>
-            {activeColumns.map((col) => {
-                const isMySector = viewMode === 'MY_TASKS' ? true : (activeSector === col.step);
-                const userIsAdmin = currentUser?.role === 'Admin' || currentUser?.departamento === 'Geral';
-                const isLocked = viewMode !== 'MY_TASKS' && !isMySector && !userIsAdmin && col.id !== 'done';
-                const isCollapsed = collapsedColumns[col.id];
-                const hasMyPending = groupedData[col.id]?.some(g => g.items.some(i => i.assignments?.[col.step!]?.userId === currentUser?.id && i[col.step!] === 'Pendente'));
-                const groups = groupedData[col.id] || [];
+          <div ref={boardContainerRef} className="flex-1 flex overflow-x-auto overflow-y-hidden px-0 pt-0 md:px-4 md:pt-4 pb-0 gap-3 md:gap-4 custom-scrollbar items-stretch bg-slate-50/50 dark:bg-slate-900/50 scroll-smooth">
+              {activeColumns.map(col => {
+                  const groups = groupedData[col.id] || [];
+                  const isLocked = col.id !== 'done' && viewMode === 'BOARD' && currentUser?.role !== 'Admin' && currentUser?.departamento !== 'Geral' && currentUser?.departamento !== col.step;
+                  const isMySector = activeSector === col.step;
+                  // Logic for pending notification on column header
+                  const hasMyPending = col.step && orders.some(o => !o.isArchived && o.assignments?.[col.step!]?.userId === currentUser?.id && o[col.step!] === 'Pendente');
 
-                return (
-                    <KanbanColumn
-                        key={col.id}
-                        col={col}
-                        groups={groups}
-                        isLocked={isLocked}
-                        isMySector={isMySector}
-                        isCollapsed={isCollapsed || false}
-                        mobileSelectedCol={mobileSelectedCol}
-                        hasMyPending={hasMyPending || false}
-                        expandedOrGroups={expandedOrGroups}
-                        toggleOrGroup={toggleOrGroup}
-                        toggleColumnCollapse={toggleColumnCollapse}
-                        handleFocusColumn={handleFocusColumn}
-                        onToggleColumnCards={toggleColumnCards}
-                        renderCard={renderCard}
-                    />
-                );
-            })}
+                  return (
+                      <KanbanColumn 
+                          key={col.id}
+                          col={col}
+                          groups={groups}
+                          isLocked={isLocked}
+                          isMySector={isMySector}
+                          isCollapsed={collapsedColumns[col.id]}
+                          mobileSelectedCol={mobileSelectedCol}
+                          hasMyPending={hasMyPending}
+                          expandedOrGroups={expandedOrGroups}
+                          toggleOrGroup={toggleOrGroup}
+                          toggleColumnCollapse={toggleColumnCollapse}
+                          handleFocusColumn={handleFocusColumn}
+                          onToggleColumnCards={onToggleColumnCards}
+                          renderCard={renderCard}
+                      />
+                  );
+              })}
           </div>
       )}
 
+      {/* Assignment Modal */}
       {assignmentModal.isOpen && assignmentModal.step && (
-          <AssignmentModal isOpen={assignmentModal.isOpen} onClose={() => setAssignmentModal({ isOpen: false, orderId: null, step: null })} users={users} currentStep={assignmentModal.step} onAssign={handleConfirmAssignment} currentAssignment={orders.find(o => o.id === assignmentModal.orderId)?.assignments?.[assignmentModal.step]} />
+          <AssignmentModal 
+              isOpen={assignmentModal.isOpen}
+              onClose={() => setAssignmentModal({ isOpen: false, orderId: null, step: null })}
+              users={users}
+              currentStep={assignmentModal.step}
+              onAssign={handleConfirmAssignment}
+              currentAssignment={orders.find(o => o.id === assignmentModal.orderId)?.assignments?.[assignmentModal.step]}
+          />
       )}
     </div>
   );
