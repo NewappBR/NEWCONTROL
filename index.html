@@ -1,0 +1,97 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Newcom Control - Gestão Industrial</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    screens: {
+                        'xs': '480px',
+                    },
+                    padding: {
+                        'safe-bottom': 'env(safe-area-inset-bottom)',
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" crossorigin="anonymous">
+    <style>
+        * {
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            font-size: 12px;
+            overflow: hidden;
+            touch-action: manipulation; /* Melhora resposta ao toque */
+            overscroll-behavior-y: none; /* Previne efeito elástico indesejado no body */
+        }
+        
+        /* Scrollbar customizada apenas para Desktop */
+        @media (min-width: 768px) {
+            ::-webkit-scrollbar { width: 4px; height: 4px; }
+            ::-webkit-scrollbar-track { background: transparent; }
+            ::-webkit-scrollbar-thumb { background: #10b981; border-radius: 10px; }
+        }
+
+        /* Mobile Scroll - Ocultar completamente barras de rolagem para visual limpo */
+        @media (max-width: 767px) {
+            .custom-scrollbar {
+                -webkit-overflow-scrolling: touch;
+                -ms-overflow-style: none;  /* IE and Edge */
+                scrollbar-width: none;  /* Firefox */
+            }
+            .custom-scrollbar::-webkit-scrollbar {
+                display: none; /* Chrome/Safari */
+                width: 0px;
+                background: transparent;
+            }
+            /* Garantir que o body/main também não mostre barra nativa feia sobrepondo */
+            ::-webkit-scrollbar {
+                width: 0px;
+                background: transparent;
+            }
+        }
+
+        @media print {
+            .no-print { display: none !important; }
+            .print-area {
+                visibility: visible !important;
+                position: absolute;
+                left: 0; top: 0; width: 100%;
+                margin: 0; padding: 0;
+            }
+            #root { display: none !important; }
+            .page-break { page-break-after: always; break-after: page; }
+        }
+    </style>
+    <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@19.0.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "@google/genai": "https://esm.sh/@google/genai@1.3.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "html-to-image": "https://esm.sh/html-to-image@1.11.11",
+    "html5-qrcode": "https://esm.sh/html5-qrcode@2.3.8",
+    "socket.io-client": "https://esm.sh/socket.io-client@^4.8.3"
+  }
+}
+</script>
+</head>
+<body class="bg-[#f8fafc] text-slate-900 dark:bg-slate-950 dark:text-slate-100 selection:bg-emerald-500 selection:text-white">
+    <div id="root"></div>
+    <script type="module" src="index.tsx"></script>
+</body>
+</html>
