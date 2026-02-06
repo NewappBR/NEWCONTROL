@@ -69,9 +69,6 @@ const ProductionTable = forwardRef<ProductionTableHandle, ProductionTableProps>(
   const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
   const [expandedOrs, setExpandedOrs] = useState<Set<string>>(new Set());
   
-  // Estado para desktop (true = colapsado)
-  const [isToolbarCollapsed, setIsToolbarCollapsed] = useState(false);
-
   // Novo estado para filtro por coluna (Setor em Produção)
   const [activeSectorFilter, setActiveSectorFilter] = useState<ProductionStep | null>(null);
 
@@ -368,35 +365,6 @@ const ProductionTable = forwardRef<ProductionTableHandle, ProductionTableProps>(
 
   let globalItemIndex = 0;
 
-  const ToolIcon = ({ onClick, icon, title, active = false }: { onClick: () => void, icon: React.ReactNode, title?: string, active?: boolean }) => (
-      <button 
-          onClick={onClick}
-          title={title}
-          className={`
-            w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 shadow-sm shrink-0
-            ${active 
-                ? 'bg-emerald-500 text-white' 
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-emerald-50 dark:hover:bg-slate-700 hover:text-emerald-600'}
-          `}
-      >
-          {icon}
-      </button>
-  );
-
-  const NavButton = ({ onClick, label, active = false }: { onClick: () => void, label: string, active?: boolean }) => (
-      <button 
-          onClick={onClick}
-          className={`
-            flex-1 py-3 px-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all
-            ${active 
-                ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30' 
-                : 'bg-transparent text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}
-          `}
-      >
-          {label}
-      </button>
-  );
-
   return (
     <>
       {/* --- Legends --- */}
@@ -428,84 +396,11 @@ const ProductionTable = forwardRef<ProductionTableHandle, ProductionTableProps>(
                     </div>
                 )}
           </div>
-      </div>
-
-      {/* --- DESKTOP VIEW: FLOATING CONTROL ISLAND --- */}
-      <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] transition-all duration-300 hidden md:block w-auto`}>
-          {isToolbarCollapsed ? (
-              <button 
-                  onClick={() => setIsToolbarCollapsed(false)}
-                  className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl px-8 py-3 rounded-full shadow-2xl border-2 border-slate-100 dark:border-slate-800 flex items-center gap-3 hover:scale-105 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all group"
-              >
-                  <span className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-300 tracking-widest group-hover:text-emerald-600 dark:group-hover:text-emerald-400">Abrir Menu</span>
-                  <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 15l7-7 7 7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </button>
-          ) : (
-              <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl p-3 rounded-[32px] shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col gap-3 min-w-[400px] animate-in slide-in-from-bottom-4">
-                  
-                  {/* Top Row: Navigation Tabs + Center QR */}
-                  <div className="flex items-center justify-between gap-4 relative">
-                      {/* Left Tab */}
-                      <NavButton 
-                          onClick={() => setActiveTab?.('OPERACIONAL')} 
-                          label="Produção Ativa" 
-                          active={activeTab === 'OPERACIONAL'} 
-                      />
-                      
-                      {/* Center Floating QR Button */}
-                      <button 
-                          onClick={onShowScanner}
-                          className="w-14 h-14 bg-slate-900 dark:bg-slate-800 text-white border-4 border-white dark:border-slate-900 rounded-full flex items-center justify-center hover:bg-emerald-500 transition-all active:scale-95 shadow-xl absolute left-1/2 -translate-x-1/2 -top-1 z-10"
-                          title="Escanear QR Code"
-                      >
-                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v1m6 11h2m-6 0h-2v4h2v-4zM6 8v4h4V8H6zm14 10.5c0 .276-.224.5-.5.5h-3a.5.5 0 01-.5-.5v-3a.5.5 0 01.5-.5h3a.5.5 0 01.5.5v3z" strokeWidth="2"/></svg>
-                      </button>
-
-                      {/* Right Tab */}
-                      <NavButton 
-                          onClick={() => setActiveTab?.('CONCLUÍDAS')} 
-                          label="Arquivo Morto" 
-                          active={activeTab === 'CONCLUÍDAS'} 
-                      />
-                  </div>
-
-                  {/* Divider */}
-                  <div className="h-px bg-slate-100 dark:bg-slate-800 w-full"></div>
-
-                  {/* Bottom Row: Tools (Icons Only) */}
-                  <div className="flex items-center justify-between gap-2 px-2">
-                      <div className="flex items-center gap-2">
-                          <ToolIcon onClick={handleExpandAll} icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" strokeWidth="2"/></svg>} title="Expandir Tudo" />
-                          <ToolIcon onClick={handleCollapseAll} icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v16h16V4H4z" strokeWidth="2"/><path d="M9 9l6 6m0-6l-6 6" strokeWidth="2"/></svg>} title="Recolher Tudo" />
-                          <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1"></div>
-                          <ToolIcon onClick={handleExpandCurrentDay} icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v.01" /><circle cx="12" cy="15" r="1" /></svg>} title="Ordens de Hoje" />
-                          <ToolIcon onClick={handleExpandCurrentWeek} icon={<span className="text-[9px] font-black">SEM</span>} title="Ver Semana" />
-                          <ToolIcon onClick={handleExpandOrderMode} icon={<span className="text-[9px] font-black">ORD</span>} title="Ver Ordens" />
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                          <ToolIcon onClick={onScrollTop} icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 10l7-7m0 0l7 7m-7-7v18" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>} title="Topo" />
-                          
-                          {/* Collapse Button */}
-                          <button 
-                              onClick={() => setIsToolbarCollapsed(true)}
-                              className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-red-500 flex items-center justify-center transition-colors"
-                              title="Recolher Menu"
-                          >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                          </button>
-
-                          <button 
-                              onClick={onCreateOrder}
-                              className="px-5 py-2.5 rounded-full bg-[#064e3b] dark:bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap active:scale-95 hover:bg-emerald-800 shadow-md flex items-center gap-2 ml-2"
-                          >
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4" strokeWidth="3"/></svg>
-                              Nova O.R
-                          </button>
-                      </div>
-                  </div>
-              </div>
-          )}
+          
+          <div className="hidden md:flex gap-1">
+              <button onClick={handleExpandAll} className="text-[8px] font-bold text-slate-400 hover:text-slate-600 uppercase px-2 py-1 rounded bg-slate-100 dark:bg-slate-800">Expandir Tudo</button>
+              <button onClick={handleCollapseAll} className="text-[8px] font-bold text-slate-400 hover:text-slate-600 uppercase px-2 py-1 rounded bg-slate-100 dark:bg-slate-800">Recolher Tudo</button>
+          </div>
       </div>
 
       {/* --- MOBILE VIEW: LIST --- */}
@@ -649,7 +544,7 @@ const ProductionTable = forwardRef<ProductionTableHandle, ProductionTableProps>(
       <div className="hidden md:block bg-transparent md:bg-white dark:md:bg-slate-900 rounded-[16px] border-none md:border border-slate-200 dark:border-slate-800 md:shadow-lg mb-32 transition-colors w-full pb-48">
         <div className="w-full">
           <table className="w-full text-left border-collapse table-fixed">
-            <thead className="sticky top-[62px] z-20 bg-white dark:bg-slate-900 shadow-sm border-b border-slate-200 dark:border-slate-700">
+            <thead className="sticky top-0 z-20 bg-white dark:bg-slate-900 shadow-sm border-b border-slate-200 dark:border-slate-700">
               <tr className="border-b border-slate-100 dark:border-slate-800">
                 <th className="w-[4%] px-2 py-4 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">QR</th>
                 <th className="w-[3%] px-2 py-4 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">#</th>

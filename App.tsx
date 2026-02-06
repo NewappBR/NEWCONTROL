@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Order, Status, User, ProductionStep, SortConfig, Notification, HistoryEntry, CompanySettings, GlobalLogEntry, Ramal, DEPARTMENTS, TaskAssignment, NetworkPath } from './types';
+import { Order, Status, User, ProductionStep, SortConfig, Notification, HistoryEntry, CompanySettings, GlobalLogEntry, Ramal, DEPARTMENTS, TaskAssignment, NetworkPath, Attachment } from './types';
 import ProductionTable, { ProductionTableHandle } from './components/ProductionTable';
 import Login from './components/Login';
 import QRCodeModal from './components/QRCodeModal';
@@ -36,7 +36,7 @@ const App: React.FC = () => {
   
   const mainRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<ProductionTableHandle>(null);
-  const kanbanRef = useRef<KanbanViewHandle>(null); // Ref para controlar o Kanban
+  const kanbanRef = useRef<KanbanViewHandle>(null); 
   
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -57,6 +57,9 @@ const App: React.FC = () => {
       reminderEnabled: false
   });
 
+  // Controls for Floating Dock
+  const [showToolsRow, setShowToolsRow] = useState(true);
+
   // --- CARREGAMENTO DE DADOS (Híbrido) ---
   const fetchData = async () => {
       setIsSyncing(true);
@@ -65,7 +68,6 @@ const App: React.FC = () => {
       if (data) {
           setConnectionStatus(data.isOffline ? 'offline' : 'online');
 
-          // FORCE MOCK DATA IF LOW COUNT (FOR DEMO/TESTING AS REQUESTED)
           if (!data.orders || data.orders.length < 5) {
               console.log("Carregando dados de exemplo (Mock)...");
               setOrders(MOCK_ORDERS); 
@@ -86,16 +88,17 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchData(); // Carga inicial
+    fetchData(); 
 
     subscribeToChanges(() => {
         fetchData(); 
     });
   }, []);
 
-  // Updated Tab Type - Removed GESTÃO as it is now inside Kanban
   const [activeTab, setActiveTab] = useState<'OPERACIONAL' | 'CONCLUÍDAS' | 'CALENDÁRIO' | 'KANBAN'>('OPERACIONAL');
   const [dashboardFilter, setDashboardFilter] = useState<'TODAS' | 'PRODUCAO' | 'ATRASADAS'>('TODAS');
+  const [showDashboard, setShowDashboard] = useState(true); // Controle de visibilidade do dashboard
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showQRModal, setShowQRModal] = useState<Order | null>(null);
@@ -111,14 +114,9 @@ const App: React.FC = () => {
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'dataEntrega', direction: 'asc' });
   const [attachmentModal, setAttachmentModal] = useState<{ isOpen: boolean; order: Order | null }>({ isOpen: false, order: null });
   
-  // Assignment Modal Control
-  const [assignmentModal, setAssignmentModal] = useState<{ isOpen: boolean; orderId: string | null; step: ProductionStep | null }>({
+  const [assignmentModal, setAssignmentModal] = useState<{ isOpen: boolean; orderId: string | null; step: ProductionStep | null; userId?: string }>({
       isOpen: false, orderId: null, step: null
   });
-
-  // Collapse States
-  const [isToolbarCollapsed, setIsToolbarCollapsed] = useState(false); // Desktop
-  const [isMobileDockCollapsed, setIsMobileDockCollapsed] = useState(false); // Mobile
 
   const [manualNotifications, setManualNotifications] = useState<Notification[]>([]);
   const [systemNotifications, setSystemNotifications] = useState<Notification[]>([]);
@@ -126,9 +124,6 @@ const App: React.FC = () => {
   const [toast, setToast] = useState<{ show: boolean, message: string, type: 'success' | 'error' | 'info' }>({ 
     show: false, message: '', type: 'info' 
   });
-
-  // Derived state to check if any modal is open (to hide mobile dock)
-  const isAnyModalOpen = showOrderModal || showQRModal || showHistoryModal || showUserManagement || showOperatorPanel || showCreateAlert || showScanner || showTechSheetModal || showNotifications || attachmentModal.isOpen || assignmentModal.isOpen;
 
   const formatHeaderTime = (date: Date) => {
     const options: Intl.DateTimeFormatOptions = { 
@@ -142,11 +137,9 @@ const App: React.FC = () => {
     else window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleDashboardFilterClick = (filter: 'TODAS' | 'PRODUCAO' | 'ATRASADAS') => {
-      setSearchTerm(''); // Limpa a busca para garantir que a lista apareça
-      setActiveTab('OPERACIONAL'); 
-      setDashboardFilter(filter); 
-      if (mainRef.current) mainRef.current.scrollTo({ top: 0, behavior: 'smooth' }); 
+  const handleScrollToBottom = () => {
+    if (mainRef.current) mainRef.current.scrollTo({ top: mainRef.current.scrollHeight, behavior: 'smooth' });
+    else window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
   };
 
   useEffect(() => {
@@ -165,7 +158,6 @@ const App: React.FC = () => {
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
-  // Persistência Híbrida
   const handleUpdateUsers = (newUsers: User[]) => {
       setUsers(newUsers);
       saveGlobalData(newUsers, undefined, undefined);
@@ -198,10 +190,8 @@ const App: React.FC = () => {
     });
   };
 
-  // Helper para limpar notificação específica de atribuição
   const clearAssignmentNotification = (orderId: string, userId: string) => {
       setSystemNotifications(prev => prev.filter(n => {
-          // Mantém se não for a notificação desta ordem para este usuário
           return !(n.metadata?.type === 'ASSIGNMENT' && n.metadata?.orderId === orderId && n.targetUserId === userId);
       }));
   };
@@ -262,7 +252,6 @@ const App: React.FC = () => {
   };
 
   const handleNotificationAction = (notification: Notification) => { 
-      // Ação: Reset de Senha
       if (notification.metadata && notification.metadata.type === 'RESET_PASSWORD') {
           const targetLogin = String(notification.metadata.targetUserLogin || '').trim();
           const targetUser = users.find(u => u.email.toLowerCase().includes(targetLogin.toLowerCase()) || u.nome.toLowerCase().includes(targetLogin.toLowerCase()));
@@ -273,15 +262,13 @@ const App: React.FC = () => {
           } else { showToast(`Erro: Usuário não encontrado.`, 'error'); }
       }
       
-      // Ação: Ver Meus Trabalhos (Nova Atribuição)
       if (notification.metadata && notification.metadata.type === 'ASSIGNMENT') {
           handleMarkAsRead(notification.id);
-          setActiveTab('KANBAN'); // Troca para a aba Kanban
-          setShowNotifications(false); // Fecha o painel de notificações
-          // Pequeno delay para garantir que o Kanban montou e a ref está disponível
+          setActiveTab('KANBAN'); 
+          setShowNotifications(false); 
           setTimeout(() => {
               if (kanbanRef.current) {
-                  kanbanRef.current.switchToMyTasks(); // Força a visão "Meus Trabalhos"
+                  kanbanRef.current.switchToMyTasks(); 
                   showToast('Filtrando suas tarefas atribuídas.', 'info');
               }
           }, 100);
@@ -341,27 +328,21 @@ const App: React.FC = () => {
     return result;
   }, [orders, activeTab, debouncedSearch, dashboardFilter]);
 
-  // --- ACTIONS (Atualizam localmente + API em background) ---
-
   const handleUpdateStatus = async (id: string, step: ProductionStep, next: Status) => {
-    // 1. Atualização Otimista no Estado React
     const orderIndex = orders.findIndex(o => o.id === id);
     if (orderIndex === -1) return;
     
     const order = orders[orderIndex];
     const newEntry: HistoryEntry = { userId: currentUser?.id || 'sys', userName: currentUser?.nome || 'Sistema', timestamp: new Date().toISOString(), status: next, sector: step };
     
-    // Atualização de Assignment se houver
     let updatedAssignments = order.assignments ? { ...order.assignments } : {};
     const currentAssignment = updatedAssignments[step];
 
     if (currentAssignment) {
         if (next === 'Em Produção' && !currentAssignment.startedAt) {
-            // INICIAR TAREFA (Marca tempo e remove notificação)
             updatedAssignments[step] = { ...currentAssignment, startedAt: new Date().toISOString() };
             clearAssignmentNotification(id, currentAssignment.userId);
         } else if (next === 'Concluído') {
-            // FINALIZAR TAREFA
             updatedAssignments[step] = { ...currentAssignment, completedAt: new Date().toISOString() };
         }
     }
@@ -379,16 +360,13 @@ const App: React.FC = () => {
         showToast('FINALIZADO E ARQUIVADO', 'success'); 
     }
 
-    // Atualiza UI
     const newOrders = [...orders];
     newOrders[orderIndex] = updatedOrder;
     setOrders(newOrders);
 
-    // 2. Chama Service (que lida com LocalStorage/API)
     await apiUpdateOrder(updatedOrder);
   };
 
-  // --- NOVA AÇÃO: ATRIBUIÇÃO DE TAREFA ---
   const handleAssignUser = async (orderId: string, step: ProductionStep, userId: string, note: string, assignerName: string) => {
       const orderIndex = orders.findIndex(o => o.id === orderId);
       if (orderIndex === -1) return;
@@ -405,7 +383,6 @@ const App: React.FC = () => {
           note
       };
 
-      // Se userId vazio, remove a atribuição
       const updatedAssignments = { ...(order.assignments || {}) };
       if (userId) {
           updatedAssignments[step] = newAssignment;
@@ -413,12 +390,11 @@ const App: React.FC = () => {
           delete updatedAssignments[step];
       }
 
-      // Log no histórico
       const newEntry: HistoryEntry = { 
           userId: currentUser?.id || 'sys', 
           userName: assignerName, 
           timestamp: new Date().toISOString(), 
-          status: order[step], // Mantém status atual (provavelmente Pendente)
+          status: order[step], 
           sector: step 
       };
       
@@ -436,482 +412,608 @@ const App: React.FC = () => {
       
       if (userId) {
           showToast(`Tarefa atribuída a ${userName}`, 'success');
-          // CRIAR NOTIFICAÇÃO
           addNotification(
               'NOVA TAREFA DESIGNADA', 
               `Você foi designado para a O.R #${order.or} por ${assignerName}.`, 
               'info', 
               userId, 
               DEPARTMENTS[step],
-              'VER MEUS TRABALHOS', // Label do botão que dispara a ação
-              { type: 'ASSIGNMENT', orderId: orderId } // Metadata para ação
+              'VER MEUS TRABALHOS', 
+              { type: 'ASSIGNMENT', orderId: orderId } 
           );
       } else {
           showToast('Atribuição removida.', 'info');
       }
   };
 
-  // Ação para salvar múltiplos caminhos de rede (ATUALIZADA para aceitar NetworkPath[])
   const handleSavePaths = async (orderId: string, paths: NetworkPath[]) => {
       const orderIndex = orders.findIndex(o => o.id === orderId);
       if (orderIndex === -1) return;
 
       const order = orders[orderIndex];
-      // Atualiza paths E mantém retrocompatibilidade com filePath (usa o path do primeiro item)
-      const updatedOrder = { 
-          ...order, 
-          filePaths: paths,
-          filePath: paths.length > 0 ? paths[0].path : order.filePath 
-      };
-
+      const updatedOrder = { ...order, filePaths: paths };
+      
       const newOrders = [...orders];
       newOrders[orderIndex] = updatedOrder;
       setOrders(newOrders);
-
+      
       await apiUpdateOrder(updatedOrder);
-      showToast('Caminhos de rede salvos.', 'success');
+      showToast('Caminhos de rede atualizados.', 'success');
   };
 
-  // Trigger Assignment Modal from Management View
-  const handleOpenAssignment = (orderId: string, step: ProductionStep) => {
-      setAssignmentModal({ isOpen: true, orderId, step });
-  };
-
-  const handleArchiveOrder = async (id: string) => { 
-      const order = orders.find(o => o.id === id);
-      if (order) {
-          const updated = { ...order, isArchived: true, archivedAt: new Date().toISOString() };
-          setOrders(prev => prev.map(o => o.id === id ? updated : o));
-          await apiUpdateOrder(updated);
-      }
-      showToast('ARQUIVADO', 'success'); 
-  };
-
-  const handleReactivateOrder = async (id: string) => { 
-      const order = orders.find(o => o.id === id);
-      if(order) {
-          const updated: Order = { ...order, isArchived: false, archivedAt: undefined, expedicao: 'Pendente' };
-          setOrders(prev => prev.map(o => o.id === id ? updated : o));
-          await apiUpdateOrder(updated);
-      }
-      showToast('REATIVADO', 'success'); 
-  };
-
-  const handleDeleteOrder = async (id: string) => { 
-      const order = orders.find(o => o.id === id);
-      if (order) {
-          const log: GlobalLogEntry = { id: Date.now().toString(), userId: currentUser?.id || 'sys', userName: currentUser?.nome || 'Sys', timestamp: new Date().toISOString(), actionType: 'DELETE_ORDER', targetInfo: `O.R #${order.or}` };
-          handleUpdateLogs([...globalLogs, log]);
-      }
-      setOrders(prev => prev.filter(o => o.id !== id));
-      await apiDeleteOrder(id);
-      showToast('EXCLUÍDO', 'error'); 
-  };
-
-  // ... (Other handlers like handleBulkDeleteOrders, handleDeleteUser, handleSaveOrder... kept same)
-  const handleBulkDeleteOrders = (ids: string[]) => { 
-      const newLogs: GlobalLogEntry[] = [];
-      const now = new Date().toISOString();
-      ids.forEach(id => {
-          const order = orders.find(o => o.id === id);
-          if (order) {
-              newLogs.push({
-                  id: Math.random().toString(36).substr(2, 9),
-                  userId: currentUser?.id || 'sys',
-                  userName: currentUser?.nome || 'Sistema',
-                  timestamp: now,
-                  actionType: 'DELETE_ORDER',
-                  targetInfo: `O.R #${order.or} - ${order.cliente} (Limpeza)`
-              });
-          }
-      });
-      handleUpdateLogs([...globalLogs, ...newLogs]);
-      setOrders(prev => prev.filter(o => !ids.includes(o.id)));
-      ids.forEach(async id => await apiDeleteOrder(id));
-      showToast('LIMPEZA CONCLUÍDA', 'success'); 
-  };
-
-  const handleDeleteUser = (id: string) => {
-    const userToDelete = users.find(u => u.id === id);
-    if (userToDelete) {
-        const log: GlobalLogEntry = { 
-            id: Date.now().toString(), 
-            userId: currentUser?.id || 'sys', 
-            userName: currentUser?.nome || 'Sys', 
-            timestamp: new Date().toISOString(), 
-            actionType: 'DELETE_USER', 
-            targetInfo: `Usuário ${userToDelete.nome}` 
-        };
-        handleUpdateLogs([...globalLogs, log]);
+  const handleLogin = (email: string, pass: string) => {
+    const user = users.find(u => u.email.toUpperCase() === email.toUpperCase() && u.password === pass);
+    if (user) {
+      setCurrentUser(user);
+      if (mainRef.current) mainRef.current.scrollTo({ top: 0, behavior: 'instant' });
+      return true;
     }
-    const newUsers = users.filter(u => u.id !== id);
-    handleUpdateUsers(newUsers);
-    showToast('Usuário excluído.', 'success');
-  };
-
-  const handleSaveOrder = async (orderData: Partial<Order>[], idsToDelete?: string[]) => {
-    if (idsToDelete && idsToDelete.length > 0) {
-        setOrders(prev => prev.filter(o => !idsToDelete.includes(o.id)));
-        for (const id of idsToDelete) await apiDeleteOrder(id);
-    }
-    const newOrdersList = [...orders];
-    for (const itemData of orderData) {
-        if (itemData.id && newOrdersList.some(o => o.id === itemData.id)) {
-            const idx = newOrdersList.findIndex(o => o.id === itemData.id);
-            if (idx !== -1) {
-                const oldOrder = newOrdersList[idx];
-                const newEntry: HistoryEntry = { userId: currentUser?.id || 'sys', userName: currentUser?.nome || 'Sys', timestamp: new Date().toISOString(), status: 'Dados Editados' as any, sector: 'Geral' };
-                const updated = { ...oldOrder, ...itemData, history: [...(oldOrder.history || []), newEntry] } as Order;
-                newOrdersList[idx] = updated;
-                apiUpdateOrder(updated); 
-            }
-        } else {
-            const newOrder = { 
-                ...itemData,
-                id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-                createdAt: new Date().toISOString(),
-                createdBy: currentUser?.nome,
-                preImpressao: 'Pendente', impressao: 'Pendente', producao: 'Pendente', instalacao: 'Pendente', expedicao: 'Pendente',
-                isArchived: false,
-                history: []
-            } as Order;
-            newOrdersList.unshift(newOrder); 
-            apiCreateOrder(newOrder);
-        }
-    }
-    setOrders(newOrdersList);
-    showToast('Salvo com sucesso!', 'success');
-    setShowOrderModal(false); 
-    setEditingOrder(null);
-  };
-
-  const handleLogin = (loginOrName: string, pass: string) => {
-    const input = loginOrName.trim().toLowerCase();
-    const found = users.find(x => {
-        const email = (x.email || '').toLowerCase().trim();
-        const nome = (x.nome || '').toLowerCase().trim();
-        return (email === input || nome === input) && x.password === pass;
-    });
-    if (found) { setCurrentUser(found); return true; }
     return false;
   };
 
-  const handleResetRequest = (login: string) => { 
-      localStorage.setItem('pcp_reset_request_user', login); 
-      const admins = users.filter(u => u.role === 'Admin');
-      admins.forEach(admin => {
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setShowOperatorPanel(false);
+    setActiveTab('OPERACIONAL');
+  };
+
+  const handleResetPasswordRequest = (email: string) => {
+      const targetUser = users.find(u => u.email.toUpperCase() === email.toUpperCase());
+      if (targetUser) {
           addNotification(
-            '🔐 RESET DE SENHA', 
-            `Usuário "${login}" pediu reset.`, 
-            'urgent', 
-            admin.id, 
-            undefined,
-            'RESETAR (1234)', 
-            { type: 'RESET_PASSWORD', targetUserLogin: login }
+              'SOLICITAÇÃO DE RESET DE SENHA',
+              `O usuário ${targetUser.nome} solicitou reset de senha.`,
+              'urgent',
+              'ALL',
+              'Geral',
+              'RESETAR AGORA',
+              { type: 'RESET_PASSWORD', targetUserLogin: email }
           );
-      });
-      showToast("Solicitação enviada.", "success");
+      }
   };
 
-  // Toggle Logic: Switch between Calendar, List and Kanban view
-  // Not used directly but kept for compatibility logic
-  const toggleViewMode = () => {
-      setActiveTab(prev => prev === 'CALENDÁRIO' ? 'OPERACIONAL' : 'CALENDÁRIO');
+  const handleCreateOrder = (newOrdersData: Partial<Order>[], idsToDelete?: string[]) => {
+    // 1. Process Deletions
+    if (idsToDelete && idsToDelete.length > 0) {
+        idsToDelete.forEach(id => {
+            apiDeleteOrder(id);
+        });
+        setOrders(prev => prev.filter(o => !idsToDelete.includes(o.id)));
+    }
+
+    // 2. Process Adds/Updates
+    newOrdersData.forEach(async (data) => {
+        if (data.id) {
+            // Update
+            const orderIndex = orders.findIndex(o => o.id === data.id);
+            if (orderIndex === -1) return;
+            
+            const existingOrder = orders[orderIndex];
+            const updatedOrder = { ...existingOrder, ...data };
+            
+            // Check if archived status changed
+            if (data.isArchived !== undefined && data.isArchived !== existingOrder.isArchived) {
+                updatedOrder.archivedAt = data.isArchived ? new Date().toISOString() : undefined;
+            }
+
+            const newOrders = [...orders];
+            newOrders[orderIndex] = updatedOrder; 
+            setOrders(prev => prev.map(o => o.id === data.id ? updatedOrder : o)); 
+            await apiUpdateOrder(updatedOrder);
+
+        } else {
+            // Create
+            const newOrder: Order = {
+                id: Date.now().toString() + Math.random().toString().slice(2, 5),
+                or: data.or!,
+                cliente: data.cliente!,
+                vendedor: data.vendedor!,
+                item: data.item!,
+                dataEntrega: data.dataEntrega!,
+                quantidade: data.quantidade,
+                numeroItem: data.numeroItem,
+                createdAt: data.createdAt || new Date().toISOString(),
+                createdBy: currentUser?.nome || 'Sistema',
+                preImpressao: 'Pendente',
+                impressao: 'Pendente',
+                producao: 'Pendente',
+                instalacao: 'Pendente',
+                expedicao: 'Pendente',
+                prioridade: data.prioridade || 'Média',
+                isArchived: false,
+                isRemake: data.isRemake,
+                observacao: data.observacao,
+                assignments: {},
+                history: [{
+                    userId: currentUser?.id || 'sys',
+                    userName: currentUser?.nome || 'Sistema',
+                    timestamp: new Date().toISOString(),
+                    status: 'Pendente',
+                    sector: 'Geral'
+                }],
+                filePaths: data.filePath ? [{ name: 'Principal', path: data.filePath }] : [],
+                attachments: data.attachments || []
+            };
+            
+            setOrders(prev => [newOrder, ...prev]);
+            await apiCreateOrder(newOrder);
+            
+            // Notify Leaders
+            addNotification(
+                'NOVA ORDEM CRIADA',
+                `O.R #${newOrder.or} - ${newOrder.cliente}`,
+                'info',
+                'ALL', // Target everyone or specifically leaders
+                'preImpressao', 
+                'VER DETALHES'
+            );
+        }
+    });
+
+    setShowOrderModal(false);
+    setEditingOrder(null);
+    showToast('Salvo com sucesso!', 'success');
   };
 
-  const handleCreateNewOrder = () => {
-      setEditingOrder(null); 
-      setShowOrderModal(true);
+  const handleBulkDelete = (ids: string[]) => {
+      ids.forEach(id => apiDeleteOrder(id));
+      setOrders(prev => prev.filter(o => !ids.includes(o.id)));
   };
 
-  if (!currentUser) return <Login onLogin={handleLogin} onResetPassword={handleResetRequest} companyLogo={companySettings.logoUrl} />;
+  if (!currentUser) {
+    return <Login onLogin={handleLogin} onResetPassword={handleResetPasswordRequest} companyLogo={companySettings.logoUrl} />;
+  }
 
-  // Permission Check for Management Tab
-  const showManagementTab = currentUser.isLeader === true || currentUser.role === 'Admin';
+  // Calculate unread notifications
+  const unreadCount = notifications.filter(n => !n.readBy.includes(currentUser.id)).length;
 
   return (
-    <div className="h-screen flex flex-col bg-[#fdfdfd] dark:bg-slate-950 overflow-hidden relative transition-colors duration-300">
-      <header className="bg-[#064e3b] dark:bg-emerald-950 h-14 flex items-center justify-between px-4 md:px-6 shrink-0 z-50 border-b border-emerald-900 shadow-xl">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 md:w-10 md:h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white shadow-inner p-1">
-             <Logo src={companySettings.logoUrl} className="w-full h-full" />
-          </div>
-          <div className="hidden md:block"><h1 className="text-white font-black text-xs md:text-sm tracking-[2px] uppercase">{companySettings.name.split(' ')[0]}</h1><span className="text-emerald-400 font-black text-[8px] uppercase tracking-[3px]">CONTROL</span></div>
-        </div>
-        <div className="hidden md:flex flex-1 justify-center">
-          <div className={`px-6 py-1.5 bg-black/20 rounded-full border border-white/5 flex items-center gap-3 ${isSyncing ? 'animate-pulse ring-1 ring-emerald-400' : ''}`}>
-            <span className="text-emerald-400 font-black text-[10px] uppercase tracking-[2px] tabular-nums">{formatHeaderTime(currentTime)}</span>
-            {connectionStatus === 'online' ? (
-                <div className="w-2 h-2 bg-emerald-500 rounded-full" title="Online"></div>
-            ) : (
-                <div className="flex items-center gap-1">
-                    <div className="w-2 h-2 bg-slate-400 rounded-full" title="Modo Offline"></div>
-                    <span className="text-[7px] text-slate-400 font-bold uppercase">OFFLINE</span>
+    <div className={`flex flex-col h-screen bg-[#f8fafc] dark:bg-slate-950 transition-colors duration-300 ${isDarkMode ? 'dark' : ''}`}>
+        {/* TOAST */}
+        {toast.show && (
+            <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[1500] px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-4 fade-in duration-300 ${
+                toast.type === 'success' ? 'bg-emerald-500 text-white' : 
+                toast.type === 'error' ? 'bg-red-500 text-white' : 'bg-slate-800 text-white'
+            }`}>
+                {toast.type === 'success' && <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>}
+                {toast.type === 'error' && <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                <span className="text-xs font-black uppercase tracking-wide">{toast.message}</span>
+            </div>
+        )}
+
+        {/* HEADER */}
+        <header className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-4 py-3 md:px-8 flex justify-between items-center z-40 shrink-0 shadow-sm relative">
+            <div className="flex items-center gap-4">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-[#064e3b] dark:bg-emerald-900 rounded-xl flex items-center justify-center shadow-lg text-emerald-400 p-1">
+                    <Logo src={companySettings.logoUrl} className="w-full h-full" />
                 </div>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 md:gap-5">
-            {/* Ícone de Calendário/Lista/Kanban (Toggle) */}
-            <div className="flex bg-black/20 rounded-lg p-1 gap-1">
-                <button 
-                    onClick={() => setActiveTab('OPERACIONAL')} 
-                    className={`p-1.5 rounded-md transition-colors ${activeTab === 'OPERACIONAL' ? 'bg-emerald-500 text-white shadow-sm' : 'text-white/50 hover:text-white'}`}
-                    title="Lista"
-                >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" strokeWidth="2.5" strokeLinecap="round"/></svg>
-                </button>
-                <button 
-                    onClick={() => setActiveTab('CALENDÁRIO')} 
-                    className={`p-1.5 rounded-md transition-colors ${activeTab === 'CALENDÁRIO' ? 'bg-emerald-500 text-white shadow-sm' : 'text-white/50 hover:text-white'}`}
-                    title="Calendário"
-                >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" strokeWidth="2.5"/></svg>
-                </button>
-                <button 
-                    onClick={() => setActiveTab('KANBAN')} 
-                    className={`p-1.5 rounded-md transition-colors ${activeTab === 'KANBAN' ? 'bg-emerald-500 text-white shadow-sm' : 'text-white/50 hover:text-white'}`}
-                    title="Kanban (Fluxo)"
-                >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 00-2 2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                </button>
+                <div className="hidden md:block">
+                    <h1 className="text-xl md:text-2xl font-black tracking-tighter text-slate-900 dark:text-white uppercase leading-none">{companySettings.name}</h1>
+                    <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-[2px]">{formatHeaderTime(currentTime)}</span>
+                        {connectionStatus === 'offline' && <span className="px-1.5 py-0.5 bg-red-100 text-red-600 text-[8px] font-black rounded uppercase">OFFLINE</span>}
+                    </div>
+                </div>
             </div>
 
-            <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 text-white/70 hover:text-yellow-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" strokeWidth="2.5"/></svg></button>
-            
-            <button 
-                onClick={() => setShowCreateAlert(true)} 
-                className="p-2 text-white/70 hover:text-blue-400 transition-colors"
-                title="Enviar Recado/Alerta"
-            >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg>
-            </button>
-
-            <div className="relative">
-                <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 text-white/70 hover:text-emerald-400"><svg className="w-6 h-6 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" strokeWidth="2.5"/></svg>{notifications.length > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-[#064e3b]"></span>}</button>
-                {showNotifications && (
-                    <NotificationPanel 
-                        notifications={notifications} 
-                        onClose={() => setShowNotifications(false)} 
-                        onMarkAsRead={handleMarkAsRead} 
-                        onMarkAllAsRead={handleMarkAllRead} 
-                        onAction={handleNotificationAction} 
-                    />
-                )}
+            {/* VIEW MODE ICONS - MOVED TO HEADER */}
+            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+               <button 
+                  onClick={() => setActiveTab('OPERACIONAL')}
+                  className={`p-2 rounded-lg transition-all ${activeTab === 'OPERACIONAL' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                  title="Lista"
+               >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+               </button>
+               <button 
+                  onClick={() => setActiveTab('KANBAN')}
+                  className={`p-2 rounded-lg transition-all ${activeTab === 'KANBAN' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                  title="Kanban"
+               >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 00-2-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+               </button>
+               <button 
+                  onClick={() => setActiveTab('CALENDÁRIO')}
+                  className={`p-2 rounded-lg transition-all ${activeTab === 'CALENDÁRIO' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                  title="Calendário"
+               >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+               </button>
             </div>
-            <div className="flex items-center gap-3 pl-4 border-l border-white/10">
-                <div className="hidden md:flex flex-col items-end"><span className="text-[11px] font-black text-white uppercase">{currentUser.nome}</span><span className="text-[8px] font-bold text-emerald-400 uppercase">{currentUser.cargo}</span></div>
-                <button onClick={() => setShowOperatorPanel(true)} className="w-10 h-10 bg-white/10 hover:bg-emerald-500 text-white rounded-2xl flex items-center justify-center transition-all"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" strokeWidth="2"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" strokeWidth="2"/></svg></button>
-            </div>
-        </div>
-      </header>
 
-      <main ref={mainRef} className={`flex-1 bg-slate-50/30 dark:bg-slate-900/50 transition-all ${activeTab === 'KANBAN' ? 'overflow-hidden p-0' : 'overflow-auto p-0 md:p-4 pb-48 md:pb-32'}`}>
-        <div className={`w-full max-w-[1450px] mx-auto h-full ${activeTab === 'KANBAN' ? '' : 'space-y-4 p-4 md:p-0'}`}>
-          {activeTab !== 'KANBAN' && (
+            <div className="flex items-center gap-2 md:gap-4">
+                {/* Theme Toggle */}
+                <button 
+                    onClick={() => setIsDarkMode(!isDarkMode)} 
+                    className="w-10 h-10 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 hover:text-emerald-600 transition-all"
+                    title="Alternar Tema"
+                >
+                    {isDarkMode ? (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    )}
+                </button>
+
+                <div className="relative">
+                    <button onClick={() => setShowNotifications(!showNotifications)} className="w-10 h-10 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 hover:text-emerald-600 transition-all relative">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" strokeWidth="2.5"/></svg>
+                        {unreadCount > 0 && (
+                            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[9px] font-black flex items-center justify-center rounded-full shadow-sm border-2 border-white dark:border-slate-900">{unreadCount}</span>
+                        )}
+                    </button>
+                    {showNotifications && (
+                        <NotificationPanel 
+                            notifications={notifications} 
+                            onClose={() => setShowNotifications(false)}
+                            onMarkAsRead={handleMarkAsRead}
+                            onMarkAllAsRead={handleMarkAllRead}
+                            onAction={handleNotificationAction}
+                        />
+                    )}
+                </div>
+
+                <button onClick={() => setShowOperatorPanel(true)} className="flex items-center gap-3 pl-2 pr-2 md:pr-4 py-1.5 bg-slate-50 dark:bg-slate-800 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700 group">
+                    <div className="w-7 h-7 bg-emerald-500 text-white rounded-lg flex items-center justify-center text-xs font-black shadow-sm group-hover:scale-110 transition-transform">
+                        {currentUser.nome[0]}
+                    </div>
+                    <div className="hidden md:flex flex-col items-start">
+                        <span className="text-[10px] font-black text-slate-700 dark:text-white uppercase leading-none">{currentUser.nome.split(' ')[0]}</span>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase leading-none mt-0.5">{currentUser.cargo || 'Operador'}</span>
+                    </div>
+                </button>
+            </div>
+        </header>
+
+        {/* BIG DASHBOARD - Collapsible & Conditional */}
+        {(activeTab === 'OPERACIONAL' || activeTab === 'CALENDÁRIO') && (
             <>
-                <div className="flex flex-col md:flex-row justify-between gap-4">
-                    {/* Stats Cards - Cores Suaves no Modo Claro, Transparência no Modo Escuro */}
-                    <div onClick={() => handleDashboardFilterClick('TODAS')} className={`flex-1 p-4 rounded-3xl border flex items-center justify-between cursor-pointer transition-colors ${dashboardFilter === 'TODAS' && activeTab === 'OPERACIONAL' ? 'bg-emerald-50 border-emerald-500 dark:bg-emerald-900/20 dark:border-emerald-500/50' : 'bg-white border-slate-200 dark:bg-slate-900 dark:border-slate-800'}`}>
-                        <div><p className="text-[9px] font-black text-slate-400 uppercase">Ativas</p><p className="text-3xl font-black text-slate-900 dark:text-white">{stats.total}</p></div>
-                    </div>
-                    <div onClick={() => handleDashboardFilterClick('PRODUCAO')} className={`flex-1 p-4 rounded-3xl border flex items-center justify-between cursor-pointer transition-colors ${dashboardFilter === 'PRODUCAO' && activeTab === 'OPERACIONAL' ? 'bg-amber-50 border-amber-500 dark:bg-amber-900/20 dark:border-amber-500/50' : 'bg-white border-slate-200 dark:bg-slate-900 dark:border-slate-800'}`}>
-                        <div><p className="text-[9px] font-black text-slate-400 uppercase">Em Produção</p><p className="text-3xl font-black text-amber-500">{stats.emAndamento}</p></div>
-                    </div>
-                    <div onClick={() => handleDashboardFilterClick('ATRASADAS')} className={`flex-1 p-4 rounded-3xl border flex items-center justify-between cursor-pointer transition-colors ${dashboardFilter === 'ATRASADAS' && activeTab === 'OPERACIONAL' ? 'bg-red-50 border-red-500 dark:bg-red-900/20 dark:border-red-500/50' : 'bg-white border-slate-200 dark:bg-slate-900 dark:border-slate-800'}`}>
-                        <div><p className="text-[9px] font-black text-slate-400 uppercase">Atrasadas</p><p className="text-3xl font-black text-red-500">{stats.atrasadas}</p></div>
-                    </div>
+                <div className={`bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 shrink-0 z-30 transition-all duration-300 overflow-hidden relative ${showDashboard ? 'max-h-[500px] py-6' : 'max-h-0 py-0'}`}>
+                     <div className="px-4 md:px-8">
+                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-6xl mx-auto">
+                            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col items-center justify-center group hover:scale-[1.02] transition-transform">
+                               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 group-hover:text-emerald-500 transition-colors">Total Ativas</span>
+                               <span className="text-3xl font-black text-slate-700 dark:text-white leading-none">{stats.total}</span>
+                            </div>
+                            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col items-center justify-center group hover:scale-[1.02] transition-transform">
+                               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 group-hover:text-amber-500 transition-colors">Em Produção</span>
+                               <span className="text-3xl font-black text-amber-500 leading-none">{stats.emAndamento}</span>
+                            </div>
+                            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col items-center justify-center group hover:scale-[1.02] transition-transform">
+                               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 group-hover:text-red-500 transition-colors">Atrasadas</span>
+                               <span className="text-3xl font-black text-red-500 leading-none">{stats.atrasadas}</span>
+                            </div>
+                            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col items-center justify-center group hover:scale-[1.02] transition-transform cursor-pointer" onClick={() => setShowCreateAlert(true)}>
+                               <div className="flex flex-col items-center gap-2">
+                                   <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-400 group-hover:text-blue-500 flex items-center justify-center transition-colors">
+                                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" strokeWidth="2.5"/></svg>
+                                   </div>
+                                   <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Enviar Aviso</span>
+                               </div>
+                            </div>
+                         </div>
+                     </div>
                 </div>
-
-                <div className="flex flex-col gap-3 sticky top-0 z-30">
-                    <div className="flex flex-row items-center gap-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm p-2 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                        <input type="text" placeholder="Buscar..." className="flex-1 w-full pl-4 pr-4 py-3 bg-slate-50 dark:bg-slate-950 rounded-2xl text-[11px] font-bold outline-none" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-                        <button onClick={() => { setEditingOrder(null); setShowOrderModal(true); }} className="px-6 py-3 bg-[#064e3b] dark:bg-emerald-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-900 transition-all flex items-center gap-2">Nova O.R</button>
-                    </div>
-                </div>
-            </>
-          )}
-
-          {activeTab === 'CALENDÁRIO' ? (
-             <CalendarView orders={orders} onEditOrder={(o) => { setEditingOrder(o); setShowOrderModal(true); }} onDateClick={handleCalendarDateClick} />
-          ) : activeTab === 'KANBAN' ? (
-             <KanbanView 
-                ref={kanbanRef}
-                orders={orders} 
-                onUpdateStatus={handleUpdateStatus} 
-                onEditOrder={(o) => { setEditingOrder(o); setShowOrderModal(true); }} 
-                currentUser={currentUser}
-                onShowQR={(o) => setShowQRModal(o)}
-                onShowAttachment={(o) => setAttachmentModal({ isOpen: true, order: o })}
-                onShowTechSheet={handlePrintTechSheet}
-                users={users}
-                onAssignUser={(orderId, step, userId, note, assignerName) => handleAssignUser(orderId, step, userId, note, assignerName)}
-             />
-          ) : (
-             <ProductionTable 
-                ref={tableRef}
-                orders={filteredOrders} 
-                onUpdateStatus={handleUpdateStatus} 
-                onEditOrder={(o) => { setEditingOrder(o); setShowOrderModal(true); }}
-                onCreateOrder={() => { setEditingOrder(null); setShowOrderModal(true); }}
-                onShowQR={(o) => setShowQRModal(o)}
-                onDeleteOrder={handleDeleteOrder}
-                onReactivateOrder={handleReactivateOrder}
-                onArchiveOrder={handleArchiveOrder}
-                onShowHistory={(o) => setShowHistoryModal(o)}
-                onShowTechSheet={handlePrintTechSheet}
-                onDirectPrint={handleDirectPrint}
-                currentUser={currentUser}
-                onSort={(key) => setSortConfig(current => ({ key, direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc' }))}
-                sortConfig={sortConfig}
-                activeTab={activeTab}
-                setActiveTab={setActiveTab as any}
-                onScrollTop={handleScrollToTop}
-                onShowScanner={() => setShowScanner(true)}
-             />
-          )}
-        </div>
-      </main>
-
-      {/* ... (Resto do código dos modais e menu flutuante mantido) ... */}
-      {!isAnyModalOpen && activeTab !== 'CALENDÁRIO' && activeTab !== 'KANBAN' && (
-        <>
-            {/* ... Mobile dock buttons code ... */}
-            {isMobileDockCollapsed && (
-                <div className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-[800] md:hidden animate-in slide-in-from-bottom-4">
+                
+                {/* Collapse Button - Placed Outside to avoid clipping */}
+                <div className="flex justify-center -mt-3 z-30 relative h-3">
                     <button 
-                        onClick={() => setIsMobileDockCollapsed(false)}
-                        className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl px-8 py-3 rounded-full shadow-2xl border-2 border-slate-100 dark:border-slate-800 flex items-center gap-3 active:scale-95 transition-all"
+                        onClick={() => setShowDashboard(!showDashboard)}
+                        className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-emerald-500 rounded-full w-6 h-6 flex items-center justify-center shadow-sm transition-transform active:scale-95"
+                        title={showDashboard ? "Recolher Dashboard" : "Expandir Dashboard"}
                     >
-                        <span className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-300 tracking-widest">ABRIR MENU</span>
-                        <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 15l7-7 7 7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        <svg className={`w-3 h-3 transition-transform duration-300 ${showDashboard ? 'rotate-180' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                     </button>
                 </div>
-            )}
+            </>
+        )}
 
-            {!isMobileDockCollapsed && (
-                <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-[800] md:hidden w-[98%] max-w-[420px] animate-in slide-in-from-bottom-6 duration-300">
-                    <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl p-1.5 rounded-[24px] shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col gap-1.5 relative">
+        {/* MAIN CONTENT AREA */}
+        <main ref={mainRef} className="flex-1 overflow-x-hidden overflow-y-auto bg-[#f8fafc] dark:bg-slate-950 relative custom-scrollbar p-2 md:p-6 pb-40">
+            
+            {/* SEARCH & NEW ORDER BAR (ONLY FOR LIST/ARCHIVE VIEWS) */}
+            {(activeTab === 'OPERACIONAL' || activeTab === 'CONCLUÍDAS') && (
+                <div className="max-w-7xl mx-auto mb-6 flex gap-3 animate-in fade-in slide-in-from-top-4 mt-2">
+                    <div className="flex-1 relative group">
+                        <input 
+                            type="text" 
+                            placeholder={activeTab === 'OPERACIONAL' ? "BUSCAR NA PRODUÇÃO..." : "BUSCAR NO ARQUIVO..."}
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-12 pr-4 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[20px] text-sm font-bold uppercase shadow-sm outline-none focus:ring-2 ring-emerald-500 transition-all dark:text-white"
+                        />
+                        <svg className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-emerald-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth="2.5"/></svg>
                         
-                        <button 
-                            onClick={() => setIsMobileDockCollapsed(true)}
-                            className="absolute -top-6 left-1/2 -translate-x-1/2 w-20 h-10 bg-white dark:bg-slate-900 rounded-t-2xl shadow-sm border-t border-x border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-400 hover:text-red-500 transition-all active:scale-95 z-0"
-                            title="Recolher Ferramentas"
-                        >
-                            <div className="w-10 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full mt-2"></div>
-                        </button>
-
-                        {/* ... Mobile Tabs ... */}
-                        <div className="flex bg-slate-100 dark:bg-black/40 rounded-xl p-1 h-10 relative z-10">
-                            <button 
-                                onClick={() => setActiveTab('OPERACIONAL')}
-                                className={`flex-1 rounded-lg text-[9px] font-black uppercase transition-all z-10 ${activeTab === 'OPERACIONAL' ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-400'}`}
-                            >
-                                Produção
-                            </button>
-                            <button 
-                                onClick={() => setActiveTab('CONCLUÍDAS')}
-                                className={`flex-1 rounded-lg text-[9px] font-black uppercase transition-all z-10 ${activeTab === 'CONCLUÍDAS' ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-400'}`}
-                            >
-                                Arquivo
-                            </button>
-                            <div className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white dark:bg-slate-800 rounded-lg shadow-sm transition-transform duration-300 ${activeTab === 'CONCLUÍDAS' ? 'translate-x-[calc(100%+4px)]' : 'translate-x-0'}`}></div>
-                        </div>
-
-                        {/* ... Mobile Tools ... */}
-                        <div className="flex justify-between items-end px-0.5 pb-0.5 relative h-14 z-10">
-                            <div className="flex gap-1 overflow-x-auto custom-scrollbar w-[calc(50%-32px)] pr-0.5 items-center h-full justify-start mask-linear-fade-right">
-                                <button onClick={() => tableRef.current?.expandAll()} className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-emerald-600 flex items-center justify-center active:scale-90 transition-transform shrink-0"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" strokeWidth="2"/></svg></button>
-                                <button onClick={() => tableRef.current?.collapseAll()} className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-red-500 flex items-center justify-center active:scale-90 transition-transform shrink-0"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v16h16V4H4z" strokeWidth="2"/><path d="M9 9l6 6m0-6l-6 6" strokeWidth="2"/></svg></button>
-                                <button onClick={() => tableRef.current?.expandToday()} className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-amber-500 flex items-center justify-center active:scale-90 transition-transform shrink-0"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></button>
-                                <button onClick={() => handleScrollToTop()} className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-blue-500 flex items-center justify-center active:scale-90 transition-transform shrink-0"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 10l7-7m0 0l7 7m-7-7v18" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+                        {/* New Order Button - INSIDE SEARCH BAR RIGHT SIDE */}
+                        {activeTab === 'OPERACIONAL' && (
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                                <button 
+                                    onClick={() => { setEditingOrder(null); setShowOrderModal(true); }}
+                                    className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg hover:bg-emerald-700 active:scale-95 transition-all flex items-center gap-2"
+                                >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4" strokeWidth="3"/></svg>
+                                    <span className="hidden sm:inline">Nova O.R</span>
+                                </button>
                             </div>
-                            <div className="absolute left-1/2 -translate-x-1/2 -bottom-1 z-20">
-                                <button onClick={() => setShowScanner(true)} className="w-14 h-14 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-full flex items-center justify-center shadow-lg border-4 border-white dark:border-slate-900 active:scale-90 transition-transform"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v1m6 11h2m-6 0h-2v4h2v-4zM6 8v4h4V8H6zm14 10.5c0 .276-.224.5-.5.5h-3a.5.5 0 01-.5-.5v-3a.5.5 0 01.5-.5h3a.5.5 0 01.5.5v3z" strokeWidth="2"/></svg></button>
-                            </div>
-                            <div className="flex gap-1 overflow-x-auto custom-scrollbar w-[calc(50%-32px)] pl-0.5 items-center h-full justify-end mask-linear-fade-left">
-                                <button onClick={() => tableRef.current?.expandWeeks()} className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-emerald-600 flex items-center justify-center active:scale-90 transition-transform shrink-0 font-black text-[9px]">SEM</button>
-                                <button onClick={() => tableRef.current?.expandOrders()} className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-emerald-600 flex items-center justify-center active:scale-90 transition-transform shrink-0 font-black text-[9px]">ORD</button>
-                                <button onClick={handleCreateNewOrder} className="w-9 h-9 rounded-full bg-emerald-500 text-white shadow-md shadow-emerald-500/30 flex items-center justify-center active:scale-90 transition-transform shrink-0"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
-                                <button onClick={() => setShowOperatorPanel(true)} className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center active:scale-90 transition-transform shrink-0"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
-                            </div>
-                        </div>
+                        )}
                     </div>
                 </div>
             )}
-        </>
-      )}
 
-      {/* --- FLOATING CONTROL ISLAND (DESKTOP) --- */}
-      <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] transition-all duration-300 hidden md:block w-auto`}>
-          {isToolbarCollapsed ? (
-              <button onClick={() => setIsToolbarCollapsed(false)} className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl px-8 py-3 rounded-full shadow-2xl border-2 border-slate-100 dark:border-slate-800 flex items-center gap-3 hover:scale-105 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all group"><span className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-300 tracking-widest group-hover:text-emerald-600 dark:group-hover:text-emerald-400">Abrir Menu</span><svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 15l7-7 7 7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
-          ) : ( <></> )}
-      </div>
+            {activeTab === 'KANBAN' ? (
+                <KanbanView 
+                    ref={kanbanRef}
+                    orders={filteredOrders}
+                    onUpdateStatus={handleUpdateStatus}
+                    onEditOrder={(order) => { setEditingOrder(order); setShowOrderModal(true); }}
+                    currentUser={currentUser}
+                    onShowQR={(order) => setShowQRModal(order)}
+                    onShowAttachment={(order) => { if(order.attachments?.length) setAttachmentModal({isOpen: true, order}); else showToast('Sem anexos', 'info'); }}
+                    onShowTechSheet={handlePrintTechSheet}
+                    users={users}
+                    onAssignUser={handleAssignUser}
+                />
+            ) : activeTab === 'CALENDÁRIO' ? (
+                <CalendarView 
+                    orders={orders}
+                    onEditOrder={(order) => { setEditingOrder(order); setShowOrderModal(true); }}
+                    onDateClick={handleCalendarDateClick}
+                />
+            ) : (
+                <ProductionTable 
+                    ref={tableRef}
+                    orders={filteredOrders}
+                    onUpdateStatus={handleUpdateStatus}
+                    onEditOrder={(order) => { setEditingOrder(order); setShowOrderModal(true); }}
+                    onCreateOrder={() => { setEditingOrder(null); setShowOrderModal(true); }}
+                    onShowQR={(order) => setShowQRModal(order)}
+                    onDeleteOrder={apiDeleteOrder}
+                    onReactivateOrder={(id) => {
+                        const order = orders.find(o => o.id === id);
+                        if (order) {
+                            const updated = { ...order, isArchived: false, archivedAt: undefined };
+                            setOrders(prev => prev.map(o => o.id === id ? updated : o));
+                            apiUpdateOrder(updated);
+                            showToast('O.R Reativada!', 'success');
+                        }
+                    }}
+                    onArchiveOrder={(id) => {
+                        const order = orders.find(o => o.id === id);
+                        if (order) {
+                            const updated = { ...order, isArchived: true, archivedAt: new Date().toISOString() };
+                            setOrders(prev => prev.map(o => o.id === id ? updated : o));
+                            apiUpdateOrder(updated);
+                            showToast('O.R Arquivada!', 'success');
+                        }
+                    }}
+                    onShowHistory={(order) => setShowHistoryModal(order)}
+                    onShowTechSheet={handlePrintTechSheet}
+                    onDirectPrint={handleDirectPrint}
+                    currentUser={currentUser}
+                    onSort={(key) => setSortConfig(prev => ({ key, direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc' }))}
+                    sortConfig={sortConfig}
+                    activeTab={activeTab === 'CONCLUÍDAS' ? 'CONCLUÍDAS' : 'OPERACIONAL'}
+                    setActiveTab={(tab) => {
+                        if (tab === 'CALENDÁRIO') setActiveTab('CALENDÁRIO');
+                        else setActiveTab(tab as any);
+                    }}
+                    onScrollTop={handleScrollToTop}
+                    onShowScanner={() => setShowScanner(true)}
+                />
+            )}
+        </main>
 
-      {/* MODALS */}
-      {showQRModal && <QRCodeModal order={showQRModal} companySettings={companySettings} onClose={() => setShowQRModal(null)} />}
-      {showOrderModal && <OrderModal order={editingOrder || undefined} existingOrders={orders} onClose={() => { setShowOrderModal(false); setEditingOrder(null); }} onSave={handleSaveOrder} currentUser={currentUser} companySettings={companySettings} showToast={showToast} />}
-      {showHistoryModal && <OrderHistoryModal order={showHistoryModal} onClose={() => setShowHistoryModal(null)} />}
-      {showUserManagement && <UserManagementModal users={users} orders={orders} companySettings={companySettings} ramais={ramais} globalLogs={globalLogs} onClose={() => setShowUserManagement(false)} onAddUser={(u) => handleUpdateUsers([...users, { ...u, id: Date.now().toString() } as User])} onDeleteUser={handleDeleteUser} onUpdateUser={(u) => handleUpdateUsers(users.map(user => user.id === u.id ? u : user))} onUpdateCompanySettings={handleUpdateSettings} onUpdateRamais={setRamais} onBulkDeleteOrders={handleBulkDeleteOrders} showToast={showToast} />}
-      {showOperatorPanel && <OperatorPanel user={currentUser} ramais={ramais} onClose={() => setShowOperatorPanel(false)} onLogout={() => setCurrentUser(null)} onOpenManagement={() => { setShowOperatorPanel(false); setShowUserManagement(true); }} onUpdateUser={(u) => handleUpdateUsers(users.map(user => user.id === currentUser.id ? { ...user, ...u } : user))} onRequestReset={() => handleResetRequest(currentUser.email)} darkMode={isDarkMode} onToggleTheme={() => setIsDarkMode(!isDarkMode)} />}
-      {showCreateAlert && <CreateAlertModal users={users} currentUser={currentUser} onClose={() => setShowCreateAlert(false)} onSend={handleCreateAlert} />}
-      {showScanner && <QRScannerModal onScanSuccess={handleScanSuccess} onClose={() => setShowScanner(false)} />}
-      
-      {showTechSheetModal && (
-          <TechnicalSheetModal 
-              order={showTechSheetModal} 
-              allOrders={orders} 
-              companySettings={companySettings} 
-              onClose={() => setShowTechSheetModal(null)} 
-              onEdit={() => { setEditingOrder(showTechSheetModal); setShowTechSheetModal(null); setShowOrderModal(true); }} 
-              onUpdateStatus={handleUpdateStatus} 
-              onShowQR={(o) => setShowQRModal(o)} 
-              currentUser={currentUser} 
-              onSavePaths={handleSavePaths}
-          />
-      )}
+        {/* --- FLOATING DOCK (ONLY VISIBLE IN LIST/CALENDAR) --- */}
+        {(activeTab === 'OPERACIONAL' || activeTab === 'CONCLUÍDAS' || activeTab === 'CALENDÁRIO') && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center animate-in slide-in-from-bottom-10 duration-500 w-full max-w-sm pointer-events-none gap-2">
+                
+                {/* 1. Main Navigation Pill (Dark) */}
+                <div className="pointer-events-auto bg-slate-900/95 dark:bg-black/90 backdrop-blur-xl p-1.5 rounded-full shadow-2xl border border-slate-700/50 ring-1 ring-white/10 flex items-center relative">
+                    {/* Production Button */}
+                    <button 
+                        onClick={() => setActiveTab('OPERACIONAL')} 
+                        className={`
+                            pl-6 pr-8 py-3 rounded-full font-black uppercase text-[10px] tracking-widest transition-all
+                            ${activeTab === 'OPERACIONAL' 
+                                ? 'bg-emerald-600 text-white shadow-lg' 
+                                : 'text-slate-400 hover:text-white hover:bg-white/5'}
+                        `}
+                    >
+                        Produção
+                    </button>
 
-      {attachmentModal.isOpen && attachmentModal.order && (
-        <div className="fixed inset-0 z-[700] flex items-center justify-center bg-slate-900/90 backdrop-blur-xl p-4 animate-in zoom-in-95 duration-200" onClick={() => setAttachmentModal({isOpen: false, order: null})}>
-           <div className="bg-white dark:bg-slate-900 rounded-[32px] p-6 w-full max-w-lg shadow-2xl border border-slate-100 dark:border-slate-700 relative max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-              <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase mb-4 shrink-0">Anexos #{attachmentModal.order.or}</h3>
-              <div className="flex-1 overflow-y-auto custom-scrollbar grid grid-cols-2 gap-3 p-1">
-                 {attachmentModal.order.attachments?.map(att => (
-                    <div key={att.id} className="bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col items-center text-center">
-                       <div className="w-12 h-12 bg-white dark:bg-slate-700 rounded-lg flex items-center justify-center mb-2 text-slate-400 overflow-hidden shadow-sm">
-                          {att.type?.startsWith('image/') ? ( <img src={att.dataUrl} className="w-full h-full object-cover" alt="preview" /> ) : ( <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg> )}
-                       </div>
-                       <p className="text-[8px] font-bold text-slate-700 dark:text-slate-300 truncate w-full mb-2" title={att.name}>{att.name}</p>
-                       <button onClick={() => { 
-                           const link = document.createElement('a'); link.href = att.dataUrl; link.download = att.name; document.body.appendChild(link); link.click(); document.body.removeChild(link);
-                        }} className="w-full py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-[8px] font-black uppercase hover:bg-emerald-500 hover:text-white transition-colors">Baixar</button>
+                    {/* QR Scanner Center Button (Floating Overlay) */}
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                        <button 
+                            onClick={() => setShowScanner(true)}
+                            className="w-14 h-14 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform active:scale-95 border-[4px] border-[#f8fafc] dark:border-slate-950 z-20 group relative"
+                            title="Ler QR Code"
+                        >
+                            <svg className="w-6 h-6 group-hover:text-emerald-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v1m6 11h2m-6 0h-2v4h2v-4zM6 8v4h4V8H6zm14 10.5c0 .276-.224.5-.5.5h-3a.5.5 0 01-.5-.5v-3a.5.5 0 01.5-.5h3a.5.5 0 01.5.5v3z" strokeWidth="2.5"/></svg>
+                        </button>
                     </div>
-                 ))}
-                 {(!attachmentModal.order.attachments || attachmentModal.order.attachments.length === 0) && <p className="col-span-2 text-center text-slate-400 text-xs py-4">Nenhum anexo.</p>}
-              </div>
-              <button onClick={() => setAttachmentModal({isOpen: false, order: null})} className="mt-4 w-full py-3 bg-slate-100 dark:bg-slate-800 text-slate-500 font-black uppercase text-[10px] rounded-xl">Fechar</button>
-           </div>
-        </div>
-      )}
-      
-      {/* Assignment Modal (Reused for Kanban View) */}
-      {assignmentModal.isOpen && assignmentModal.step && (
-          <AssignmentModal 
-              isOpen={assignmentModal.isOpen}
-              onClose={() => setAssignmentModal({ isOpen: false, orderId: null, step: null })}
-              users={users}
-              currentStep={assignmentModal.step}
-              onAssign={(userId, note) => handleAssignUser(assignmentModal.orderId!, assignmentModal.step!, userId, note, currentUser.nome)}
-              currentAssignment={orders.find(o => o.id === assignmentModal.orderId)?.assignments?.[assignmentModal.step]}
-          />
-      )}
 
-      {toast.show && (
-        <div className={`fixed top-6 left-1/2 -translate-x-1/2 px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 z-[1000] animate-in slide-in-from-top border border-white/10 ${toast.type === 'success' ? 'bg-[#064e3b] text-white' : toast.type === 'error' ? 'bg-red-500 text-white' : 'bg-slate-800 text-white'}`}>
-          <span className="text-[10px] font-black uppercase tracking-widest">{toast.message}</span>
-        </div>
-      )}
+                    {/* Spacer for Center Button */}
+                    <div className="w-10"></div>
+
+                    {/* Archive Button */}
+                    <button 
+                        onClick={() => setActiveTab('CONCLUÍDAS')} 
+                        className={`
+                            pl-8 pr-6 py-3 rounded-full font-black uppercase text-[10px] tracking-widest transition-all
+                            ${activeTab === 'CONCLUÍDAS' 
+                                ? 'bg-slate-700 text-white shadow-lg' 
+                                : 'text-slate-400 hover:text-white hover:bg-white/5'}
+                        `}
+                    >
+                        Arquivo
+                    </button>
+                </div>
+
+                {/* 2. Tools Row (Scrollable Actions - Light/Glassy) */}
+                {showToolsRow ? (
+                    <div className="pointer-events-auto flex items-center gap-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-1.5 rounded-2xl shadow-lg border border-slate-200/50 dark:border-slate-700/50 animate-in slide-in-from-bottom-2 fade-in max-w-full overflow-x-auto custom-scrollbar no-scrollbar">
+                        
+                        {/* Quick Filters/Actions */}
+                        <button onClick={() => tableRef.current?.expandOrders()} className="w-10 h-10 shrink-0 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 rounded-xl flex items-center justify-center transition-all shadow-sm" title="Ver Lista"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+                        <button onClick={() => tableRef.current?.expandAll()} className="w-10 h-10 shrink-0 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 rounded-xl flex items-center justify-center transition-all shadow-sm" title="Expandir Tudo"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 13l-7 7-7-7m14-8l-7 7-7-7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+                        <button onClick={() => tableRef.current?.collapseAll()} className="w-10 h-10 shrink-0 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 rounded-xl flex items-center justify-center transition-all shadow-sm" title="Recolher Tudo"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 15l7-7 7 7m-14-8l7-7 7 7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+                        
+                        <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1 shrink-0"></div>
+
+                        <button onClick={() => tableRef.current?.expandToday()} className="w-10 h-10 shrink-0 bg-slate-100 dark:bg-slate-800 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-xl flex items-center justify-center transition-all font-black text-[9px] shadow-sm" title="Hoje">HOJE</button>
+                        <button onClick={() => tableRef.current?.expandWeeks()} className="w-10 h-10 shrink-0 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700 rounded-xl flex items-center justify-center transition-all font-black text-[9px] shadow-sm" title="Semana">SEM</button>
+                        
+                        <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1 shrink-0"></div>
+
+                        <button onClick={handleScrollToTop} className="w-10 h-10 shrink-0 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700 rounded-xl flex items-center justify-center transition-all shadow-sm" title="Topo"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 10l7-7m0 0l7 7m-7-7v18" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+                        
+                        {/* Hide Tools Toggle */}
+                        <button onClick={() => setShowToolsRow(false)} className="w-8 h-8 shrink-0 rounded-full bg-red-100 dark:bg-red-900/20 text-red-500 hover:bg-red-500 hover:text-white flex items-center justify-center transition-all ml-1"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+                    </div>
+                ) : (
+                    // Show Tools Trigger (Small chevron)
+                    <button 
+                        onClick={() => setShowToolsRow(true)} 
+                        className="pointer-events-auto mt-1 w-8 h-6 bg-slate-900/50 hover:bg-slate-900 text-white/50 hover:text-white rounded-b-xl flex items-center justify-center transition-all"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </button>
+                )}
+            </div>
+        )}
+
+        {/* MODALS */}
+        {showOrderModal && (
+            <OrderModal 
+                order={editingOrder || undefined} 
+                existingOrders={orders}
+                onClose={() => { setShowOrderModal(false); setEditingOrder(null); }}
+                onSave={handleCreateOrder}
+                currentUser={currentUser}
+                companySettings={companySettings}
+                showToast={showToast}
+            />
+        )}
+
+        {showQRModal && (
+            <QRCodeModal 
+                order={showQRModal} 
+                companySettings={companySettings}
+                onClose={() => setShowQRModal(null)} 
+            />
+        )}
+
+        {showHistoryModal && (
+            <OrderHistoryModal 
+                order={showHistoryModal} 
+                onClose={() => setShowHistoryModal(null)} 
+            />
+        )}
+
+        {showOperatorPanel && (
+            <OperatorPanel 
+                user={currentUser}
+                ramais={ramais}
+                onClose={() => setShowOperatorPanel(false)}
+                onLogout={handleLogout}
+                onOpenManagement={() => { setShowOperatorPanel(false); setShowUserManagement(true); }}
+                onUpdateUser={(data) => {
+                    const updated = { ...currentUser, ...data };
+                    handleUpdateUsers(users.map(u => u.id === currentUser.id ? updated : u));
+                    setCurrentUser(updated);
+                }}
+                onRequestReset={() => {}}
+                darkMode={isDarkMode}
+                onToggleTheme={() => setIsDarkMode(!isDarkMode)}
+            />
+        )}
+
+        {showUserManagement && (
+            <UserManagementModal 
+                users={users}
+                orders={orders}
+                companySettings={companySettings}
+                ramais={ramais}
+                globalLogs={globalLogs}
+                onClose={() => setShowUserManagement(false)}
+                onAddUser={(userData) => {
+                    const newUser: User = { 
+                        id: Date.now().toString(), 
+                        ...userData as any,
+                        isLeader: userData.isLeader || false 
+                    };
+                    handleUpdateUsers([...users, newUser]);
+                    showToast('Colaborador adicionado.', 'success');
+                }}
+                onDeleteUser={(id) => {
+                    const deletedUser = users.find(u => u.id === id);
+                    if (deletedUser) {
+                        const log: GlobalLogEntry = { id: Date.now().toString(), userId: currentUser.id, userName: currentUser.nome, timestamp: new Date().toISOString(), actionType: 'DELETE_USER', targetInfo: deletedUser.nome };
+                        handleUpdateLogs([...globalLogs, log]);
+                    }
+                    handleUpdateUsers(users.filter(u => u.id !== id));
+                    showToast('Colaborador removido.', 'success');
+                }}
+                onUpdateUser={(updatedUser) => {
+                    handleUpdateUsers(users.map(u => u.id === updatedUser.id ? updatedUser : u));
+                    if (currentUser.id === updatedUser.id) setCurrentUser(updatedUser);
+                    showToast('Dados atualizados.', 'success');
+                }}
+                onUpdateCompanySettings={handleUpdateSettings}
+                onUpdateRamais={(newRamais) => { setRamais(newRamais); saveGlobalData(undefined, undefined, undefined); }} 
+                onBulkDeleteOrders={handleBulkDelete}
+                showToast={showToast}
+            />
+        )}
+
+        {showCreateAlert && (
+            <CreateAlertModal 
+                users={users} 
+                currentUser={currentUser} 
+                onClose={() => setShowCreateAlert(false)} 
+                onSend={handleCreateAlert} 
+            />
+        )}
+
+        {showScanner && (
+            <QRScannerModal 
+                onScanSuccess={handleScanSuccess} 
+                onClose={() => setShowScanner(false)} 
+            />
+        )}
+
+        {showTechSheetModal && (
+            <TechnicalSheetModal 
+                order={showTechSheetModal} 
+                allOrders={orders}
+                companySettings={companySettings}
+                onClose={() => setShowTechSheetModal(null)}
+                onEdit={() => { setEditingOrder(showTechSheetModal); setShowTechSheetModal(null); setShowOrderModal(true); }}
+                onUpdateStatus={handleUpdateStatus}
+                onShowQR={(o) => { setShowTechSheetModal(null); setShowQRModal(o); }}
+                currentUser={currentUser}
+                onSavePaths={handleSavePaths}
+            />
+        )}
+
+        {/* Assignment Modal (Global for Drag & Drop from ManagementView) */}
+        {assignmentModal.isOpen && assignmentModal.step && (
+            <AssignmentModal
+                isOpen={assignmentModal.isOpen}
+                onClose={() => setAssignmentModal({ isOpen: false, orderId: null, step: null })}
+                users={users}
+                currentStep={assignmentModal.step}
+                onAssign={(userId, note) => {
+                    if (assignmentModal.orderId) {
+                        handleAssignUser(assignmentModal.orderId, assignmentModal.step!, userId, note, currentUser.nome);
+                    }
+                    setAssignmentModal({ isOpen: false, orderId: null, step: null });
+                }}
+                currentAssignment={orders.find(o => o.id === assignmentModal.orderId)?.assignments?.[assignmentModal.step]}
+                preSelectedUserId={assignmentModal.userId}
+            />
+        )}
     </div>
   );
 };

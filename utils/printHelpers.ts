@@ -68,6 +68,15 @@ export const generateTechnicalSheetHtml = (
     </div>
   `;
 
+  // Mapas de cores para impressão (fundo claro)
+  const sectorPrintColors: Record<string, string> = {
+      'preImpressao': 'border-left: 3px solid #9333ea; background: #f3e8ff;', // Roxo
+      'impressao': 'border-left: 3px solid #06b6d4; background: #ecfeff;', // Ciano
+      'producao': 'border-left: 3px solid #2563eb; background: #eff6ff;', // Azul
+      'instalacao': 'border-left: 3px solid #ea580c; background: #fff7ed;', // Laranja
+      'expedicao': 'border-left: 3px solid #10b981; background: #ecfdf5;' // Verde
+  };
+
   const itemsHtml = siblingItems.map((item, idx) => {
       const refDisplay = item.numeroItem ? `<span style="background:#000; color:#fff; padding:2px 5px; font-size:9px; font-weight:bold; margin-right:5px;">REF: ${item.numeroItem}</span>` : '';
       const itemHeaderStyle = item.isRemake ? 'background:#fff3cd; border-bottom:2px solid #ffc107;' : 'background:#f0f0f0; border-bottom:1px solid #000;';
@@ -84,15 +93,24 @@ export const generateTechnicalSheetHtml = (
         ? `<div style="margin-top:8px; font-size:9px; background:#f5f5f5; padding:6px; border-radius:4px; border:1px solid #e5e5e5;">${pathsHtml}</div>` 
         : '';
 
-      // Notas de Produção
+      // Notas de Produção Setorizadas
       let notesHtml = '';
       if (item.assignments) {
-          const notesList = Object.values(item.assignments)
-            .filter(a => a && a.note)
-            .map(a => `<strong>${a!.userName.split(' ')[0]}:</strong> ${a!.note}`)
-            .join(' | ');
+          const notesList = Object.entries(item.assignments)
+            .filter(([_, a]) => a && a.note)
+            .map(([sector, a]) => {
+                const style = sectorPrintColors[sector] || 'border-left: 3px solid #ccc; background: #f9f9f9;';
+                const sectorName = DEPARTMENTS[sector as ProductionStep]?.split(' ')[0] || sector;
+                return `
+                    <div style="font-size:9px; padding:4px 8px; margin-bottom:2px; ${style}">
+                        <strong style="text-transform:uppercase;">${sectorName} (${a!.userName.split(' ')[0]}):</strong> ${a!.note}
+                    </div>
+                `;
+            })
+            .join('');
+          
           if (notesList) {
-              notesHtml = `<div style="margin-top:5px; font-size:9px; font-style:italic; background:#fffbe6; padding:4px; border:1px solid #eee;"><strong>NOTAS EQUIPE:</strong> ${notesList}</div>`;
+              notesHtml = `<div style="margin-top:8px;">${notesList}</div>`;
           }
       }
 

@@ -6,11 +6,12 @@ interface ManagementViewProps {
   orders: Order[];
   users: User[];
   currentUser: User;
-  onAssignUser: (orderId: string, step: ProductionStep) => void;
+  onAssignUser: (orderId: string, step: ProductionStep, userId?: string) => void;
   onEditOrder: (order: Order) => void;
   onShowQR: (order: Order) => void;
   onShowAttachment: (order: Order) => void;
   onShowTechSheet?: (order: Order) => void;
+  onClose?: () => void;
 }
 
 // --- SUB-COMPONENT: Scroll Button ---
@@ -51,7 +52,8 @@ const ManagementView: React.FC<ManagementViewProps> = ({
     onEditOrder,
     onShowQR,
     onShowAttachment,
-    onShowTechSheet
+    onShowTechSheet,
+    onClose
 }) => {
   const [now, setNow] = useState(new Date());
   
@@ -61,9 +63,12 @@ const ManagementView: React.FC<ManagementViewProps> = ({
   // Filtros e Estados de Visualização
   const [priorityFilter, setPriorityFilter] = useState<'ALL' | 'Alta' | 'Média' | 'Baixa'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showBacklogModal, setShowBacklogModal] = useState(false);
   
   // Controles de Expansão/Colapso
-  const [collapsedColumns, setCollapsedColumns] = useState<Record<string, boolean>>({});
+  const [collapsedColumns, setCollapsedColumns] = useState<Record<string, boolean>>({
+      'unassigned': true // Default backlog collapsed as requested
+  });
   const [expandedOrGroups, setExpandedOrGroups] = useState<Record<string, boolean>>({});
   const [minimizedItems, setMinimizedItems] = useState<Record<string, boolean>>({});
   const [expandedDetails, setExpandedDetails] = useState<Record<string, boolean>>({});
@@ -74,8 +79,6 @@ const ManagementView: React.FC<ManagementViewProps> = ({
     const interval = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(interval);
   }, []);
-
-  const isAdmin = currentUser.role === 'Admin' || currentUser.departamento === 'Geral';
 
   // --- ACTIONS ---
   const toggleColumn = (colId: string) => setCollapsedColumns(prev => ({ ...prev, [colId]: !prev[colId] }));
@@ -88,37 +91,74 @@ const ManagementView: React.FC<ManagementViewProps> = ({
 
   const toggleDetails = (itemId: string) => setExpandedDetails(prev => ({ ...prev, [itemId]: !prev[itemId] }));
 
-  // 1. Filtrar Usuários (Colunas)
+  // --- 1. CALCULATE ORDER DISTRIBUTION FIRST ---
+  // We need to know who has assignments BEFORE filtering the visible columns
+  const orderDistribution = useMemo(() => {
+      const dist: Record<string, number> = {};
+      users.forEach(u => dist[u.id] = 0);
+      
+      const relevantOrders = orders.filter(o => !o.isArchived); // Basic filter for calc
+
+      relevantOrders.forEach(o => {
+          const steps: ProductionStep[] = ['preImpressao', 'impressao', 'producao', 'instalacao', 'expedicao'];
+          steps.forEach(step => {
+              const assignment = o.assignments?.[step];
+              if (assignment && assignment.userId) {
+                  // Only count if relevant to current view filter
+                  if (viewSectorFilter === 'ALL' || step === viewSectorFilter) {
+                      dist[assignment.userId] = (dist[assignment.userId] || 0) + 1;
+                  }
+              }
+          });
+      });
+      return dist;
+  }, [orders, users, viewSectorFilter]);
+
+  // --- 2. FILTER TEAM MEMBERS (COLUMNS) ---
   const teamMembers = useMemo(() => {
       return users.filter(u => {
           if (u.id === currentUser.id) return false;
 
-          // Filtro de Busca
+          // 1. Search Filter
           if (searchTerm) {
               const term = searchTerm.toLowerCase();
               const matchName = u.nome.toLowerCase().includes(term);
               const matchRole = u.cargo?.toLowerCase().includes(term);
               const matchDept = u.departamento && DEPARTMENTS[u.departamento as keyof typeof DEPARTMENTS]?.toLowerCase().includes(term);
-              
               if (!matchName && !matchRole && !matchDept) return false;
           }
 
-          // Filtro de Setor
+          // 2. Sector Filter Logic
           if (viewSectorFilter !== 'ALL') {
               const isUserInSector = u.departamento === viewSectorFilter;
               const isGeneralOrAdmin = u.departamento === 'Geral' || u.role === 'Admin';
+              
               if (!isUserInSector && !isGeneralOrAdmin) return false;
           }
 
+          // 3. ADMIN/LEADER Logic
+          if (u.role === 'Admin') {
+              // Admin only appears if they have tasks assigned in the current context
+              return (orderDistribution[u.id] || 0) > 0;
+          }
+          
+          if (u.isLeader) {
+              // Leader always appears if they match the sector (already filtered above)
+              return true;
+          }
+
+          // Regular Operators: Show (unless filtered by search/sector)
           return true;
+
       }).sort((a, b) => {
-          if (a.role === 'Admin' && b.role !== 'Admin') return -1;
-          if (b.role === 'Admin' && a.role !== 'Admin') return 1;
+          // Sort Leaders first, then Operators, then Admins
+          if (a.isLeader && !b.isLeader) return -1;
+          if (!a.isLeader && b.isLeader) return 1;
           return a.nome.localeCompare(b.nome);
       });
-  }, [users, currentUser, searchTerm, viewSectorFilter]);
+  }, [users, currentUser, searchTerm, viewSectorFilter, orderDistribution]);
 
-  // 2. Filtrar Ordens
+  // 3. Filter Orders for View
   const relevantOrders = useMemo(() => {
       return orders.filter(o => {
           if (o.isArchived) return false;
@@ -127,9 +167,9 @@ const ManagementView: React.FC<ManagementViewProps> = ({
       });
   }, [orders, priorityFilter]);
 
-  // 3. Distribuir Ordens nas Colunas
+  // 4. Distribute Orders into Columns
   const kanbanData = useMemo(() => {
-      const data: Record<string, { or: string, client: string, items: Order[] }[]> = {};
+      const data: Record<string, { or: string; client: string; items: Order[] }[]> = {};
       
       data['unassigned'] = [];
       teamMembers.forEach(u => data[u.id] = []);
@@ -191,21 +231,13 @@ const ManagementView: React.FC<ManagementViewProps> = ({
       return data;
   }, [relevantOrders, teamMembers, viewSectorFilter]);
 
-  // Global Actions (Updated to avoid iteration errors)
-  const expandAllGroups = () => {
-      const allOrs = new Set<string>();
-      const allDataValues = Object.values(kanbanData) as { or: string, client: string, items: Order[] }[][];
-      allDataValues.forEach(groups => {
-          if (Array.isArray(groups)) {
-              groups.forEach(g => allOrs.add(g.or));
-          }
-      });
-      const newState = Array.from(allOrs).reduce((acc, or) => ({ ...acc, [or]: true }), {});
-      setExpandedOrGroups(newState);
+  // Global Actions
+  const expandAllColumns = () => {
+      const allIds = teamMembers.map(u => u.id);
+      const newState = { 'unassigned': true }; // Keep unassigned collapsed
+      allIds.forEach(id => newState[id] = false);
+      setCollapsedColumns(newState);
   };
-  
-  const collapseAllGroups = () => setExpandedOrGroups({}); 
-  const expandAllColumns = () => setCollapsedColumns({});
   const collapseAllColumns = () => {
       const allColIds = ['unassigned', ...teamMembers.map(u => u.id)];
       const newState = allColIds.reduce((acc, id) => ({ ...acc, [id]: true }), {});
@@ -217,9 +249,6 @@ const ManagementView: React.FC<ManagementViewProps> = ({
       const newState = allIds.reduce((acc, id) => ({ ...acc, [id]: true }), {});
       setMinimizedItems(newState);
   };
-
-  const scrollBoardLeft = () => boardRef.current?.scrollBy({ left: -320, behavior: 'smooth' });
-  const scrollBoardRight = () => boardRef.current?.scrollBy({ left: 320, behavior: 'smooth' });
 
   // Helpers
   const getDuration = (startStr?: string) => {
@@ -238,6 +267,37 @@ const ManagementView: React.FC<ManagementViewProps> = ({
       if (dateStr < today) return 'bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-400 font-black';
       if (dateStr === today) return 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 font-black';
       return 'bg-white text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 font-bold';
+  };
+
+  // --- DRAG AND DROP HANDLERS ---
+  const handleDragStart = (e: React.DragEvent, order: Order) => {
+      e.dataTransfer.setData("orderId", order.id);
+      e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = (e: React.DragEvent, targetUserId: string) => {
+      e.preventDefault();
+      const orderId = e.dataTransfer.getData("orderId");
+      if (orderId) {
+          if (targetUserId === 'unassigned') {
+              if (viewSectorFilter !== 'ALL') {
+                  // Remove assignment (pass empty userId)
+                  onAssignUser(orderId, viewSectorFilter, ''); 
+              } 
+          } else {
+              // Trigger assignment modal pre-filled with this user
+              if (viewSectorFilter !== 'ALL') {
+                  onAssignUser(orderId, viewSectorFilter, targetUserId); 
+              } else {
+                  alert("Para arrastar e soltar, selecione um setor específico no filtro acima.");
+              }
+          }
+      }
   };
 
   // --- CARD COMPONENT ---
@@ -266,8 +326,10 @@ const ManagementView: React.FC<ManagementViewProps> = ({
       if (isMinimized) {
           return (
               <div 
+                  draggable={true}
+                  onDragStart={(e) => handleDragStart(e, order)}
                   onClick={(e) => toggleMinimize(order.id, e)}
-                  className={`bg-white dark:bg-slate-900 rounded-r-lg mb-2 shadow-sm border-l-[4px] relative group/item transition-all flex flex-col shrink-0 cursor-pointer hover:shadow-md ${priorityBorderClass} ${isInProgress ? 'bg-amber-50/30 dark:bg-amber-900/10' : 'border-y border-r border-slate-200 dark:border-slate-700'}`}
+                  className={`bg-white dark:bg-slate-900 rounded-r-lg mb-2 shadow-sm border-l-[4px] relative group/item transition-all flex flex-col shrink-0 cursor-grab active:cursor-grabbing hover:shadow-md ${priorityBorderClass} ${isInProgress ? 'bg-amber-50/30 dark:bg-amber-900/10' : 'border-y border-r border-slate-200 dark:border-slate-700'}`}
               >
                   <div className="p-2.5 flex flex-col gap-1.5 relative">
                       {isInProgress && assignment?.startedAt && (
@@ -301,8 +363,10 @@ const ManagementView: React.FC<ManagementViewProps> = ({
 
       return (
           <div 
+              draggable={true}
+              onDragStart={(e) => handleDragStart(e, order)}
               onClick={(e) => toggleMinimize(order.id, e)}
-              className={`bg-white dark:bg-slate-900 rounded-r-lg mb-2 shadow-sm border-l-[4px] relative group/item transition-all flex flex-col shrink-0 cursor-pointer hover:shadow-md ${priorityBorderClass} ${isInProgress ? 'bg-amber-50/30 dark:bg-amber-900/10' : 'border-y border-r border-slate-200 dark:border-slate-700'}`}
+              className={`bg-white dark:bg-slate-900 rounded-r-lg mb-2 shadow-sm border-l-[4px] relative group/item transition-all flex flex-col shrink-0 cursor-grab active:cursor-grabbing hover:shadow-md ${priorityBorderClass} ${isInProgress ? 'bg-amber-50/30 dark:bg-amber-900/10' : 'border-y border-r border-slate-200 dark:border-slate-700'}`}
           >
               <div className="flex flex-col p-2.5 flex-1 relative">
                   {isInProgress && assignment?.startedAt && (
@@ -369,13 +433,44 @@ const ManagementView: React.FC<ManagementViewProps> = ({
   };
 
   // --- COLUMN LAYOUT ---
-  const TeamColumn: React.FC<{ id: string; label: string; avatar: React.ReactNode; count: number; isActive: boolean; groups: { or: string; client: string; items: Order[] }[] }> = ({ id, label, avatar, count, isActive, groups }) => {
+  const TeamColumn: React.FC<{ id: string; label: string; avatar: React.ReactNode; count: number; isActive: boolean; groups: { or: string; client: string; items: Order[] }[]; isLeader?: boolean }> = ({ id, label, avatar, count, isActive, groups, isLeader }) => {
       const isCollapsed = collapsedColumns[id];
       const columnRef = useRef<HTMLDivElement>(null);
 
+      // Distinct Style for Leaders vs Others
+      const bgClass = isLeader 
+        ? isActive ? 'bg-indigo-50/50 dark:bg-indigo-900/10 border-indigo-200 dark:border-indigo-800' : 'bg-slate-100/50 dark:bg-slate-800/30 border-slate-200 dark:border-slate-800'
+        : isActive ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800' : 'bg-slate-100/50 dark:bg-slate-800/30 border-slate-200 dark:border-slate-800';
+        
+      const headerBgClass = isLeader
+        ? isActive ? 'bg-indigo-100/50 dark:bg-indigo-900/30' : ''
+        : isActive ? 'bg-emerald-100/50 dark:bg-emerald-900/30' : '';
+
       if (isCollapsed) {
+          // Special look for collapsed Backlog
+          if (id === 'unassigned') {
+              return (
+                  <div 
+                    onClick={() => toggleColumn(id)}
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, id)}
+                    className="w-14 min-w-[3.5rem] flex-shrink-0 flex flex-col h-full items-center bg-slate-200/50 dark:bg-slate-800/50 border-r border-slate-300 dark:border-slate-700 py-4 gap-4 cursor-pointer hover:bg-slate-300/50 dark:hover:bg-slate-700/50 transition-colors"
+                  >
+                      <div className="w-8 h-8 rounded-lg bg-slate-400 dark:bg-slate-600 flex items-center justify-center text-white shadow-inner">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" strokeWidth="2"/></svg>
+                      </div>
+                      <div className="[writing-mode:vertical-rl] rotate-180 text-xs font-black uppercase text-slate-500 dark:text-slate-400 tracking-[3px]">BACKLOG</div>
+                      <span className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-1.5 py-0.5 rounded text-[9px] font-black mt-auto">{count}</span>
+                  </div>
+              );
+          }
+
           return (
-              <div className="w-14 min-w-[3.5rem] flex-shrink-0 flex flex-col h-full items-center bg-slate-100/50 dark:bg-slate-800/30 border-x border-t border-b-0 border-slate-200 dark:border-slate-800 md:rounded-t-2xl py-4 gap-4 transition-all">
+              <div 
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, id)}
+                className="w-14 min-w-[3.5rem] flex-shrink-0 flex flex-col h-full items-center bg-slate-100/50 dark:bg-slate-800/30 border-x border-t border-b-0 border-slate-200 dark:border-slate-800 md:rounded-t-2xl py-4 gap-4 transition-all"
+              >
                   <button onClick={() => toggleColumn(id)} className="w-8 h-8 rounded-full bg-white dark:bg-slate-700 shadow-sm flex items-center justify-center text-slate-500 hover:text-emerald-500 transition-colors group">
                       <svg className="w-4 h-4 rotate-90 transition-transform group-hover:translate-y-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   </button>
@@ -388,12 +483,19 @@ const ManagementView: React.FC<ManagementViewProps> = ({
       }
 
       return (
-          <div className={`w-[340px] flex-shrink-0 flex flex-col h-full md:rounded-t-2xl border-x border-t border-b-0 transition-all duration-300 relative ${isActive ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800' : 'bg-slate-100/50 dark:bg-slate-800/30 border-slate-200 dark:border-slate-800'}`}>
-              <div className={`p-3 border-b border-inherit flex justify-between items-center md:rounded-t-2xl ${isActive ? 'bg-emerald-100/50 dark:bg-emerald-900/30' : ''}`}>
+          <div 
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDrop(e, id)}
+            className={`w-[340px] flex-shrink-0 flex flex-col h-full md:rounded-t-2xl border-x border-t border-b-0 transition-all duration-300 relative ${bgClass}`}
+          >
+              <div className={`p-3 border-b border-inherit flex justify-between items-center md:rounded-t-2xl ${headerBgClass}`}>
                   <div className="flex items-center gap-3">
                       {avatar}
                       <div className="flex-1 min-w-0">
-                          <h3 className="text-xs font-black text-slate-800 dark:text-white uppercase truncate max-w-[150px]">{label}</h3>
+                          <div className="flex items-center gap-2">
+                              <h3 className="text-xs font-black text-slate-800 dark:text-white uppercase truncate max-w-[150px]">{label}</h3>
+                              {isLeader && <span className="bg-indigo-500 text-white text-[7px] font-black px-1.5 py-0.5 rounded uppercase">Líder</span>}
+                          </div>
                           <div className="flex items-center gap-1.5">
                               <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-600'}`}></div>
                               <span className={`text-[8px] font-black uppercase tracking-wide ${isActive ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`}>{isActive ? 'Ativo' : 'Disponível'}</span>
@@ -402,11 +504,20 @@ const ManagementView: React.FC<ManagementViewProps> = ({
                   </div>
                   <div className="flex items-center gap-2">
                       <span className="bg-white dark:bg-slate-900 px-2 py-0.5 rounded text-[9px] font-black shadow-sm">{count}</span>
+                      {id === 'unassigned' && (
+                          <button 
+                            onClick={() => setShowBacklogModal(true)} 
+                            className="text-slate-400 hover:text-blue-500 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700" 
+                            title="Expandir Backlog"
+                          >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" strokeWidth="2"/></svg>
+                          </button>
+                      )}
                       <button onClick={() => toggleColumn(id)} className="text-slate-400 hover:text-slate-600"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M11 19l-7-7 7-7m8 14l-7-7 7-7" strokeWidth="2.5"/></svg></button>
                   </div>
               </div>
 
-              <div ref={columnRef} className="flex-1 overflow-y-auto custom-scrollbar p-2 flex flex-col gap-2 pb-4 relative">
+              <div ref={columnRef} className="flex-1 overflow-y-auto custom-scrollbar p-2 flex flex-col gap-2 pb-4 relative min-h-[100px]">
                   {groups.map(group => {
                       const isMulti = group.items.length > 1;
                       const isExpanded = expandedOrGroups[group.or];
@@ -451,7 +562,7 @@ const ManagementView: React.FC<ManagementViewProps> = ({
                           </div>
                       );
                   })}
-                  {groups.length === 0 && <div className="py-6 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800/20 mt-4"><p className="text-[8px] text-slate-400 uppercase font-bold">Fila Vazia</p></div>}
+                  {groups.length === 0 && <div className="py-6 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800/20 mt-4"><p className="text-[8px] text-slate-400 uppercase font-bold opacity-50">Arraste aqui para atribuir</p></div>}
                   <ScrollToTopButton containerRef={columnRef} />
               </div>
           </div>
@@ -461,17 +572,24 @@ const ManagementView: React.FC<ManagementViewProps> = ({
   return (
     <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900/50 relative overflow-hidden">
       
-      {/* HEADER & CONTROLS */}
-      <div className="shrink-0 px-4 py-3 flex flex-col md:flex-row gap-4 items-center justify-between bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 z-10 shadow-sm">
-          <div className="flex items-center gap-3 w-full md:w-auto flex-1">
-             <div><h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Gestão de Equipe</h2><p className="text-[9px] font-bold text-slate-400 uppercase tracking-[2px] mt-0.5">Distribuição de Carga</p></div>
-          </div>
-      </div>
-
-      {/* TOOLBAR (MATCHING KANBAN VIEW DARK STYLE) */}
+      {/* TOOLBAR */}
       <div className="px-4 py-2 bg-slate-900 border-b border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0 z-20 shadow-md">
-          {/* Left: Search + Sector */}
+          {/* Left: Search + Sector + Title Integrated */}
           <div className="flex items-center gap-4 overflow-x-auto custom-scrollbar flex-1 w-full sm:w-auto">
+              
+              {/* Back Button / Title */}
+              <div className="flex items-center gap-3 pr-4 border-r border-slate-700">
+                  {onClose && (
+                      <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 19l-7-7m0 0l7-7m-7 7h18" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </button>
+                  )}
+                  <div>
+                      <h2 className="text-xs font-black text-white uppercase tracking-tighter">Gestão de Equipe</h2>
+                      <p className="text-[8px] font-bold text-emerald-500 uppercase tracking-widest leading-none">Distribuição</p>
+                  </div>
+              </div>
+
               {/* Search */}
               <div className="relative min-w-[200px] w-full sm:w-auto">
                   <input 
@@ -484,7 +602,7 @@ const ManagementView: React.FC<ManagementViewProps> = ({
                   <svg className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth="2.5"/></svg>
               </div>
 
-              {/* Sector Filter Buttons (Next to search as requested) */}
+              {/* Sector Filter Buttons */}
               <div className="flex gap-1 bg-slate-800 p-0.5 rounded-lg">
                   <button 
                       onClick={() => setViewSectorFilter('ALL')}
@@ -520,15 +638,15 @@ const ManagementView: React.FC<ManagementViewProps> = ({
                   <button onClick={collapseAllCards} className="px-3 py-1 bg-slate-800 border border-slate-700 rounded-lg text-slate-400 hover:text-emerald-400 hover:border-emerald-500/50 transition-all text-[8px] font-black uppercase whitespace-nowrap">Rec. Cards</button>
               </div>
               <div className="flex gap-1">
-                  <button onClick={expandAllGroups} className="px-3 py-1 bg-slate-800 border border-slate-700 rounded-lg text-slate-400 hover:text-emerald-400 hover:border-emerald-500/50 transition-all text-[8px] font-black uppercase whitespace-nowrap">Exp. Grupos</button>
-                  <button onClick={collapseAllGroups} className="px-3 py-1 bg-slate-800 border border-slate-700 rounded-lg text-slate-400 hover:text-emerald-400 hover:border-emerald-500/50 transition-all text-[8px] font-black uppercase whitespace-nowrap">Rec. Grupos</button>
+                  <button onClick={expandAllColumns} className="px-3 py-1 bg-slate-800 border border-slate-700 rounded-lg text-slate-400 hover:text-emerald-400 hover:border-emerald-500/50 transition-all text-[8px] font-black uppercase whitespace-nowrap">Exp. Equipe</button>
+                  <button onClick={collapseAllColumns} className="px-3 py-1 bg-slate-800 border border-slate-700 rounded-lg text-slate-400 hover:text-emerald-400 hover:border-emerald-500/50 transition-all text-[8px] font-black uppercase whitespace-nowrap">Rec. Equipe</button>
               </div>
           </div>
       </div>
 
       {/* Main Board */}
       <div ref={boardRef} className="flex-1 flex overflow-x-auto overflow-y-hidden px-0 pt-0 md:px-4 md:pt-4 pb-0 gap-3 md:gap-4 custom-scrollbar items-stretch bg-slate-50/50 dark:bg-slate-900/50 scroll-smooth">
-          {/* Unassigned Column */}
+          {/* Unassigned Column (Separate & Collapsible by default) */}
           {(viewSectorFilter !== 'ALL') && (
              <TeamColumn 
                 id="unassigned" 
@@ -544,10 +662,8 @@ const ManagementView: React.FC<ManagementViewProps> = ({
           {teamMembers.map(u => {
               const userGroups = kanbanData[u.id];
               const totalItems = userGroups.reduce((acc, g) => acc + g.items.length, 0);
-              // Check if actively working on something in the filtered view
               const isBusy = userGroups.some(g => g.items.some(i => {
                   const steps: ProductionStep[] = ['preImpressao', 'impressao', 'producao', 'instalacao', 'expedicao'];
-                  // If filtering by sector, check only that sector. If ALL, check any.
                   if (viewSectorFilter !== 'ALL') return i.assignments?.[viewSectorFilter]?.userId === u.id && i[viewSectorFilter] === 'Em Produção';
                   return steps.some(s => i.assignments?.[s]?.userId === u.id && i[s] === 'Em Produção');
               }));
@@ -557,15 +673,45 @@ const ManagementView: React.FC<ManagementViewProps> = ({
                       key={u.id}
                       id={u.id}
                       label={u.nome}
-                      avatar={<div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black uppercase text-white shadow-sm ${isBusy ? 'bg-amber-500 ring-2 ring-amber-300 dark:ring-amber-800 animate-pulse' : 'bg-emerald-500'}`}>{u.nome.substring(0,2)}</div>}
+                      avatar={<div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black uppercase text-white shadow-sm ${u.isLeader ? 'bg-indigo-500' : isBusy ? 'bg-amber-500 ring-2 ring-amber-300 dark:ring-amber-800 animate-pulse' : 'bg-emerald-500'}`}>{u.nome.substring(0,2)}</div>}
                       count={totalItems}
                       isActive={isBusy}
                       groups={userGroups}
+                      isLeader={u.isLeader}
                   />
               );
           })}
           <ScrollToTopButton containerRef={boardRef} />
       </div>
+
+      {/* Backlog Expansion Modal */}
+      {showBacklogModal && (
+          <div className="fixed inset-0 z-[1000] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4 animate-in zoom-in-95">
+              <div className="bg-white dark:bg-slate-900 w-full max-w-6xl h-[85vh] rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden">
+                  <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900">
+                      <div>
+                          <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Backlog Geral</h3>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{viewSectorFilter !== 'ALL' ? DEPARTMENTS[viewSectorFilter] : 'Todos os Setores'}</p>
+                      </div>
+                      <button onClick={() => setShowBacklogModal(false)} className="p-2 bg-white dark:bg-slate-800 rounded-xl hover:text-red-500 transition-colors shadow-sm">
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeWidth="2.5"/></svg>
+                      </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-6 bg-slate-100 dark:bg-slate-950/50">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {kanbanData['unassigned']?.flatMap(g => g.items).map(item => (
+                              <OrderCard key={item.id} order={item} userId='unassigned' />
+                          ))}
+                          {(!kanbanData['unassigned'] || kanbanData['unassigned'].length === 0) && (
+                              <div className="col-span-full flex flex-col items-center justify-center py-20 opacity-50">
+                                  <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Sem itens pendentes</p>
+                              </div>
+                          )}
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 };

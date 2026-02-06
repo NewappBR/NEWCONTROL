@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, ProductionStep, DEPARTMENTS, TaskAssignment } from '../types';
 
 interface AssignmentModalProps {
@@ -9,6 +9,7 @@ interface AssignmentModalProps {
   currentStep: ProductionStep;
   onAssign: (userId: string, note: string) => void;
   currentAssignment?: TaskAssignment;
+  preSelectedUserId?: string; // Nova prop para suportar Drag & Drop
 }
 
 const AssignmentModal: React.FC<AssignmentModalProps> = ({ 
@@ -17,10 +18,22 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
   users, 
   currentStep, 
   onAssign,
-  currentAssignment
+  currentAssignment,
+  preSelectedUserId
 }) => {
-  const [selectedUser, setSelectedUser] = useState(currentAssignment?.userId || '');
+  const [selectedUser, setSelectedUser] = useState(currentAssignment?.userId || preSelectedUserId || '');
   const [note, setNote] = useState(currentAssignment?.note || '');
+
+  // Efeito para atualizar quando a prop mudar (ex: drag and drop)
+  useEffect(() => {
+      if (preSelectedUserId) {
+          setSelectedUser(preSelectedUserId);
+      } else if (currentAssignment?.userId) {
+          setSelectedUser(currentAssignment.userId);
+      } else {
+          setSelectedUser('');
+      }
+  }, [preSelectedUserId, currentAssignment, isOpen]);
 
   // Filtrar usuários do departamento atual
   const sectorUsers = users.filter(u => u.departamento === currentStep || u.departamento === 'Geral');
@@ -94,7 +107,7 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
             </div>
 
             <div className="flex gap-3 pt-2">
-                {currentAssignment && (
+                {currentAssignment && !preSelectedUserId && (
                     <button 
                         type="button" 
                         onClick={handleRemove}
@@ -108,7 +121,7 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
                     disabled={!selectedUser}
                     className="flex-[2] py-3 bg-[#064e3b] dark:bg-emerald-600 text-white rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-800 dark:hover:bg-emerald-500 transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    {currentAssignment ? 'Atualizar' : 'Designar'}
+                    {currentAssignment && !preSelectedUserId ? 'Atualizar' : 'Designar'}
                 </button>
             </div>
         </form>

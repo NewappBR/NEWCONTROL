@@ -13,7 +13,7 @@ interface TechnicalSheetModalProps {
   onUpdateStatus: (id: string, field: ProductionStep, next: Status) => void;
   onShowQR: (order: Order) => void;
   currentUser: User | null;
-  onSavePaths?: (orderId: string, paths: NetworkPath[]) => void; // Atualizado tipo
+  onSavePaths?: (orderId: string, paths: NetworkPath[]) => void; 
 }
 
 const TechnicalSheetModal: React.FC<TechnicalSheetModalProps> = ({ 
@@ -167,7 +167,7 @@ const TechnicalSheetModal: React.FC<TechnicalSheetModalProps> = ({
   const handleRemovePath = (index: number) => {
       const newPaths = paths.filter((_, i) => i !== index);
       setPaths(newPaths);
-      setIsEditingPaths(true); // Marca como editado para habilitar salvar
+      setIsEditingPaths(true); 
   };
 
   const handleSavePathsClick = () => {
@@ -183,6 +183,14 @@ const TechnicalSheetModal: React.FC<TechnicalSheetModalProps> = ({
   const handleCopyPath = (path: string) => {
       navigator.clipboard.writeText(path);
       alert('Caminho copiado!');
+  };
+
+  const sectorColors: Record<string, string> = {
+      'preImpressao': 'bg-purple-100 text-purple-700 border-purple-200',
+      'impressao': 'bg-cyan-100 text-cyan-700 border-cyan-200',
+      'producao': 'bg-blue-100 text-blue-700 border-blue-200',
+      'instalacao': 'bg-orange-100 text-orange-700 border-orange-200',
+      'expedicao': 'bg-emerald-100 text-emerald-700 border-emerald-200',
   };
 
   // --- NOVO COMPONENTE DE FLUXO VISUAL (Mini Kanban) ---
@@ -364,7 +372,7 @@ const TechnicalSheetModal: React.FC<TechnicalSheetModalProps> = ({
                               </div>
                           </div>
 
-                          {/* CAMINHOS DE REDE (MULTIPLOS E EDITÁVEIS COM NOME) */}
+                          {/* CAMINHOS DE REDE */}
                           <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl">
                               <div className="flex justify-between items-center mb-2">
                                   <span className="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest flex items-center gap-1">
@@ -380,66 +388,56 @@ const TechnicalSheetModal: React.FC<TechnicalSheetModalProps> = ({
                                       )}
                                   </div>
                               </div>
-                              
                               <div className="space-y-2">
                                   {paths.length === 0 && <p className="text-[9px] text-blue-400 italic">Nenhum caminho especificado.</p>}
                                   {paths.map((pObj, idx) => (
                                       <div key={idx} className="flex flex-col gap-1 md:flex-row md:items-center">
                                           {canEditPaths ? (
                                               <div className="flex-1 flex gap-2">
-                                                  <input 
-                                                      type="text" 
-                                                      value={pObj.name} 
-                                                      onChange={(e) => { handlePathChange(idx, 'name', e.target.value); setIsEditingPaths(true); }}
-                                                      className="w-1/3 bg-white dark:bg-slate-900 px-2 py-1.5 rounded border border-blue-200 dark:border-blue-800 text-[10px] font-bold uppercase text-blue-800 dark:text-blue-300 outline-none focus:ring-1 ring-blue-500"
-                                                      placeholder="Nome (Ex: Final)"
-                                                  />
-                                                  <input 
-                                                      type="text" 
-                                                      value={pObj.path} 
-                                                      onChange={(e) => { handlePathChange(idx, 'path', e.target.value); setIsEditingPaths(true); }}
-                                                      className="flex-1 bg-white dark:bg-slate-900 px-2 py-1.5 rounded border border-blue-200 dark:border-blue-800 text-[10px] font-mono text-blue-800 dark:text-blue-300 outline-none focus:ring-1 ring-blue-500"
-                                                      placeholder="Cole o caminho..."
-                                                  />
+                                                  <input type="text" value={pObj.name} onChange={(e) => { handlePathChange(idx, 'name', e.target.value); setIsEditingPaths(true); }} className="w-1/3 bg-white dark:bg-slate-900 px-2 py-1.5 rounded border border-blue-200 dark:border-blue-800 text-[10px] font-bold uppercase text-blue-800 dark:text-blue-300 outline-none focus:ring-1 ring-blue-500" placeholder="Nome" />
+                                                  <input type="text" value={pObj.path} onChange={(e) => { handlePathChange(idx, 'path', e.target.value); setIsEditingPaths(true); }} className="flex-1 bg-white dark:bg-slate-900 px-2 py-1.5 rounded border border-blue-200 dark:border-blue-800 text-[10px] font-mono text-blue-800 dark:text-blue-300 outline-none focus:ring-1 ring-blue-500" placeholder="Caminho..." />
                                               </div>
                                           ) : (
                                               <div className="flex-1 flex gap-2">
-                                                  <div className="w-1/3 bg-white dark:bg-slate-900 px-2 py-1.5 rounded border border-blue-200 dark:border-blue-800">
-                                                      <p className="font-bold text-[10px] text-blue-800 dark:text-blue-300 truncate">{pObj.name || 'Caminho'}</p>
-                                                  </div>
-                                                  <div className="flex-1 bg-white dark:bg-slate-900 px-2 py-1.5 rounded border border-blue-200 dark:border-blue-800">
-                                                      <p className="font-mono text-[10px] font-bold text-blue-800 dark:text-blue-300 truncate">{pObj.path}</p>
-                                                  </div>
+                                                  <div className="w-1/3 bg-white dark:bg-slate-900 px-2 py-1.5 rounded border border-blue-200 dark:border-blue-800"><p className="font-bold text-[10px] text-blue-800 dark:text-blue-300 truncate">{pObj.name || 'Caminho'}</p></div>
+                                                  <div className="flex-1 bg-white dark:bg-slate-900 px-2 py-1.5 rounded border border-blue-200 dark:border-blue-800"><p className="font-mono text-[10px] font-bold text-blue-800 dark:text-blue-300 truncate">{pObj.path}</p></div>
                                               </div>
                                           )}
-                                          
                                           <div className="flex gap-1 justify-end">
-                                              <button onClick={() => handleCopyPath(pObj.path)} className="p-1.5 bg-white dark:bg-blue-800 rounded hover:text-blue-600 transition-colors shadow-sm" title="Copiar">
-                                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" strokeWidth="2"/></svg>
-                                              </button>
-                                              
-                                              {canEditPaths && (
-                                                  <button onClick={() => handleRemovePath(idx)} className="p-1.5 bg-white dark:bg-red-900/30 text-red-400 hover:text-red-600 rounded shadow-sm">
-                                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeWidth="2"/></svg>
-                                                  </button>
-                                              )}
+                                              <button onClick={() => handleCopyPath(pObj.path)} className="p-1.5 bg-white dark:bg-blue-800 rounded hover:text-blue-600 transition-colors shadow-sm"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" strokeWidth="2"/></svg></button>
+                                              {canEditPaths && (<button onClick={() => handleRemovePath(idx)} className="p-1.5 bg-white dark:bg-red-900/30 text-red-400 hover:text-red-600 rounded shadow-sm"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeWidth="2"/></svg></button>)}
                                           </div>
                                       </div>
                                   ))}
                               </div>
                           </div>
 
-                          {/* Notas e Observações (Lado a Lado) */}
+                          {/* Notas e Observações (Separate by Sector Color) */}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                               <div className="p-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl">
                                   <span className="text-[8px] font-black text-amber-600 dark:text-amber-400 uppercase block mb-1">Observações da O.R</span>
                                   <p className="text-[10px] font-bold text-slate-700 dark:text-slate-300 italic min-h-[30px] leading-snug">{currentItem.observacao || 'Sem observações.'}</p>
                               </div>
                               <div className="p-3 bg-slate-100 dark:bg-slate-700/20 border border-slate-200 dark:border-slate-700 rounded-xl">
-                                  <span className="text-[8px] font-black text-slate-500 dark:text-slate-400 uppercase block mb-1">Notas de Produção</span>
-                                  <p className="text-[10px] font-bold text-slate-700 dark:text-slate-300 italic min-h-[30px] leading-snug">
-                                      {Object.values(currentItem.assignments || {}).map((a) => (a as TaskAssignment)?.note).filter(Boolean).join(' • ') || 'Nenhuma nota específica.'}
-                                  </p>
+                                  <span className="text-[8px] font-black text-slate-500 dark:text-slate-400 uppercase block mb-2">Notas de Produção</span>
+                                  <div className="space-y-1.5 max-h-[80px] overflow-y-auto custom-scrollbar">
+                                      {Object.entries(currentItem.assignments || {}).map(([key, assignment]) => {
+                                          const ass = assignment as TaskAssignment;
+                                          if(!ass.note) return null;
+                                          const stepName = DEPARTMENTS[key as ProductionStep] || key;
+                                          const colorClass = sectorColors[key] || 'bg-slate-200 text-slate-600 border-slate-300';
+                                          
+                                          return (
+                                              <div key={key} className={`text-[9px] p-1.5 rounded border flex flex-col ${colorClass} bg-opacity-30 dark:bg-opacity-10`}>
+                                                  <span className="font-black uppercase text-[8px] opacity-70 mb-0.5">{stepName.split(' ')[0]} - {ass.userName.split(' ')[0]}</span>
+                                                  <span className="italic font-bold">"{ass.note}"</span>
+                                              </div>
+                                          );
+                                      })}
+                                      {(!currentItem.assignments || Object.values(currentItem.assignments).every((a:any) => !a.note)) && (
+                                          <p className="text-[9px] font-bold text-slate-400 italic">Nenhuma nota registrada.</p>
+                                      )}
+                                  </div>
                               </div>
                           </div>
                       </div>
