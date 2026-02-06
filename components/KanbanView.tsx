@@ -694,6 +694,7 @@ const KanbanView = forwardRef<KanbanViewHandle, KanbanViewProps>(({
       const assignment = relevantStep ? order.assignments?.[relevantStep] : null;
       const status = relevantStep ? order[relevantStep] : 'Pendente';
       const isInProgress = status === 'Em Produção';
+      const hasAttachments = order.attachments && order.attachments.length > 0;
       
       const isMinimized = minimizedItems[order.id];
       const isExpanded = expandedItems[order.id];
@@ -796,52 +797,87 @@ const KanbanView = forwardRef<KanbanViewHandle, KanbanViewProps>(({
                   </div>
                   <div className={`text-[9px] text-slate-600 dark:text-slate-300 uppercase leading-snug font-medium mb-2 ${isExpanded ? '' : 'line-clamp-2'}`} title={order.item}>{order.item}</div>
                   
-                  <div className="mt-auto pt-2 border-t border-slate-50 dark:border-slate-800 flex items-center justify-between gap-2 mb-2">
-                      {userId !== 'unassigned' && assignment ? (
-                          <div className="flex items-start gap-2 bg-slate-50 dark:bg-slate-800/50 p-1.5 rounded-lg border border-slate-100 dark:border-slate-700 flex-1 min-w-0">
-                              <div className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-[8px] font-black uppercase shrink-0 shadow-sm">{assignment.userName.substring(0,2)}</div>
-                              <div className="flex-1 min-w-0">
-                                  <p className="text-[8px] font-black text-slate-700 dark:text-slate-300 truncate leading-tight">{relevantStep ? DEPARTMENTS[relevantStep].split(' ')[0] : 'Tarefa'}</p>
-                                  <p className="text-[7px] text-slate-400 dark:text-slate-500 truncate italic leading-tight">{assignment.note || 'Designado'}</p>
-                              </div>
-                          </div>
-                      ) : (
-                          relevantStep && (
-                            <button onClick={(e) => { e.stopPropagation(); setAssignmentModal({ isOpen: true, orderId: order.id, step: relevantStep }); }} className="flex items-center gap-1 text-[8px] font-bold text-slate-400 hover:text-blue-500 bg-slate-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-2 py-1.5 rounded-lg transition-colors border border-dashed border-slate-300 dark:border-slate-700 w-full justify-center group">
-                                {assignment?.userId ? (
-                                    <div className="w-4 h-4 rounded-full bg-blue-500 text-white flex items-center justify-center text-[6px] font-black">{assignment.userName.substring(0,2)}</div>
-                                ) : (
-                                    <svg className="w-3 h-3 text-slate-300 group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" strokeWidth="2"/></svg>
-                                )}
-                                {assignment?.userId ? `ALTERAR` : `DESIGNAR`}
-                            </button>
-                          )
-                      )}
-                  </div>
+                  {/* REDESIGNED FOOTER ACTIONS AREA */}
+                  <div className="mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                      
+                      {/* Left Side: Auxiliary Actions (Tech Sheet, QR, Attach, Edit) */}
+                      <div className="flex items-center -ml-1">
+                          <button 
+                              onClick={(e) => { e.stopPropagation(); onShowTechSheet?.(order); }} 
+                              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
+                              title="Ficha Técnica"
+                          >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" strokeWidth="2"/></svg>
+                          </button>
+                          
+                          <button 
+                              onClick={(e) => { e.stopPropagation(); onShowQR(order); }} 
+                              className="p-2 text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
+                              title="QR Code"
+                          >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v1m6 11h2m-6 0h-2v4h2v-4zM6 8v4h4V8H6zm14 10.5c0 .276-.224.5-.5.5h-3a.5.5 0 01-.5-.5v-3a.5.5 0 01.5-.5h3a.5.5 0 01.5.5v3z" strokeWidth="2"/></svg>
+                          </button>
 
-                  <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-100 dark:border-slate-800">
-                      <div className="flex items-center gap-0.5">
-                          <button onClick={(e) => { e.stopPropagation(); onShowAttachment(order); }} className={`p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${attachmentsCount > 0 ? 'text-blue-500' : 'text-slate-300 dark:text-slate-600'}`}><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" strokeWidth="2"/></svg></button>
-                          <button onClick={(e) => { e.stopPropagation(); onShowQR(order); }} className="p-1.5 text-slate-300 dark:text-slate-600 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-md transition-colors"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v1m6 11h2m-6 0h-2v4h2v-4zM6 8v4h4V8H6zm14 10.5c0 .276-.224.5-.5.5h-3a.5.5 0 01-.5-.5v-3a.5.5 0 01.5-.5h3a.5.5 0 01.5.5v3z" strokeWidth="2"/></svg></button>
-                          <button onClick={(e) => { e.stopPropagation(); onShowTechSheet?.(order); }} className="p-1.5 text-slate-300 dark:text-slate-600 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-md transition-colors"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" strokeWidth="2"/></svg></button>
-                          <button onClick={(e) => { e.stopPropagation(); onEditOrder(order); }} className="p-1.5 text-slate-300 dark:text-slate-600 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" strokeWidth="2"/></svg></button>
+                          <button 
+                              onClick={(e) => { e.stopPropagation(); onShowAttachment(order); }} 
+                              className={`p-2 rounded-lg transition-colors ${hasAttachments ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10'}`}
+                              title={hasAttachments ? `${attachmentsCount} Anexos` : "Anexar Arquivo"}
+                          >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" strokeWidth="2"/></svg>
+                          </button>
+
+                          <button 
+                              onClick={(e) => { e.stopPropagation(); onEditOrder(order); }} 
+                              className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                              title="Editar Detalhes"
+                          >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" strokeWidth="2"/></svg>
+                          </button>
                       </div>
-                      <div className="flex items-center gap-2">
-                          <button onClick={(e) => { e.stopPropagation(); toggleDetails(order.id); }} className={`p-1 rounded-md text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all ${isExpanded ? 'bg-slate-100 dark:bg-slate-800 text-emerald-500' : ''}`}><svg className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
-                          {showActionButtons && (
+
+                      {/* Right Side: Primary Workflow Action */}
+                      <div onClick={e => e.stopPropagation()} className="flex items-center gap-2">
+                          {/* Assignment Button (If relevant step) */}
+                          {userId !== 'unassigned' && relevantStep && (
+                              assignment ? (
+                                  <button 
+                                      className="flex items-center gap-1.5 pl-1 pr-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                      title={`Responsável: ${assignment.userName}`}
+                                      onClick={() => setAssignmentModal({ isOpen: true, orderId: order.id, step: relevantStep })}
+                                  >
+                                      <div className="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center text-[7px] font-black uppercase shadow-sm">
+                                          {assignment.userName.substring(0,2)}
+                                      </div>
+                                      <span className="text-[7px] font-bold text-slate-600 dark:text-slate-400 uppercase max-w-[40px] truncate">
+                                          {assignment.userName.split(' ')[0]}
+                                      </span>
+                                  </button>
+                              ) : (
+                                  <button 
+                                      onClick={() => setAssignmentModal({ isOpen: true, orderId: order.id, step: relevantStep })} 
+                                      className="h-7 w-7 rounded-full border border-dashed border-slate-300 dark:border-slate-600 text-slate-400 hover:text-blue-500 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 flex items-center justify-center transition-all"
+                                      title="Atribuir Responsável"
+                                  >
+                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" strokeWidth="2"/></svg>
+                                  </button>
+                              )
+                          )}
+
+                          {/* Start/Finish Button */}
+                          {showActionButtons && relevantStep && (
                               <button 
                                 onClick={(e) => handleProcessStep(e, order, relevantStep)}
                                 className={`
-                                    h-7 px-3 rounded-lg flex items-center gap-2 justify-center transition-all shadow-sm active:scale-95 shrink-0
+                                    h-7 px-3 rounded-lg flex items-center gap-1.5 justify-center transition-all shadow-sm active:scale-95 shrink-0
                                     ${status === 'Em Produção' 
-                                        ? 'bg-emerald-600 text-white hover:bg-emerald-700 ring-2 ring-emerald-300' 
-                                        : 'bg-blue-600 text-white hover:bg-blue-700 ring-2 ring-blue-300'}
+                                        ? 'bg-emerald-600 text-white hover:bg-emerald-700 ring-2 ring-emerald-300 dark:ring-emerald-800' 
+                                        : 'bg-blue-600 text-white hover:bg-blue-700 ring-2 ring-blue-300 dark:ring-blue-800'}
                                 `} 
-                                title={status === 'Em Produção' ? "Finalizar" : "Iniciar"}
+                                title={status === 'Em Produção' ? "Finalizar Tarefa" : "Iniciar Tarefa"}
                               >
                                   {status === 'Em Produção' 
-                                    ? (<><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" strokeWidth="3"/></svg><span className="text-[9px] font-black uppercase">FINALIZAR</span></>) 
-                                    : (<><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" strokeWidth="2"/></svg><span className="text-[9px] font-black uppercase">INICIAR</span></>)}
+                                    ? (<><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" strokeWidth="3"/></svg><span className="text-[9px] font-black uppercase hidden sm:inline">FINALIZAR</span></>) 
+                                    : (<><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" strokeWidth="2"/></svg><span className="text-[9px] font-black uppercase hidden sm:inline">INICIAR</span></>)}
                               </button>
                           )}
                       </div>
@@ -878,16 +914,32 @@ const KanbanView = forwardRef<KanbanViewHandle, KanbanViewProps>(({
                   </div>
               </div>
 
-              {/* Search Expanded */}
-              <div className="relative flex-1 max-w-2xl">
-                  <input 
-                      type="text" 
-                      placeholder="Buscar O.R / Cliente / Vendedor..." 
-                      className="w-full pl-10 pr-4 py-2 bg-slate-800 rounded-xl text-xs font-bold uppercase outline-none focus:ring-1 ring-emerald-500 text-white placeholder-slate-500 transition-all" 
-                      value={searchTerm} 
-                      onChange={e => setSearchTerm(e.target.value)} 
-                  />
-                  <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth="2.5"/></svg>
+              {/* Search & Filters Container */}
+              <div className="flex items-center gap-3 flex-1 max-w-2xl justify-end">
+                  {/* Priority Filter */}
+                  <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-xl shrink-0 hidden md:flex">
+                      {(['ALL', 'Alta', 'Média', 'Baixa'] as const).map(p => (
+                          <button
+                              key={p}
+                              onClick={() => setPriorityFilter(p)}
+                              className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${priorityFilter === p ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                          >
+                              {p === 'ALL' ? 'Todas' : p}
+                          </button>
+                      ))}
+                  </div>
+
+                  {/* Search Input */}
+                  <div className="relative flex-1">
+                      <input 
+                          type="text" 
+                          placeholder="Buscar O.R / Cliente / Vendedor..." 
+                          className="w-full pl-10 pr-4 py-2 bg-slate-800 rounded-xl text-xs font-bold uppercase outline-none focus:ring-1 ring-emerald-500 text-white placeholder-slate-500 transition-all" 
+                          value={searchTerm} 
+                          onChange={e => setSearchTerm(e.target.value)} 
+                      />
+                      <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth="2.5"/></svg>
+                  </div>
               </div>
           </div>
 
