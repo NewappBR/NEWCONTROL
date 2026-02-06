@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Order, User, ProductionStep, DEPARTMENTS } from '../types';
 
@@ -13,25 +14,7 @@ interface ManagementViewProps {
   onClose?: () => void;
 }
 
-// Colors for Backlog based on Sector
-const SECTOR_COLORS: Record<string, string> = {
-    'preImpressao': 'bg-purple-50/80 dark:bg-purple-900/30 border-purple-200 dark:border-purple-800',
-    'impressao': 'bg-cyan-50/80 dark:bg-cyan-900/30 border-cyan-200 dark:border-cyan-800',
-    'producao': 'bg-blue-50/80 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800',
-    'instalacao': 'bg-orange-50/80 dark:bg-orange-900/30 border-orange-200 dark:border-orange-800',
-    'expedicao': 'bg-emerald-50/80 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800',
-    'ALL': 'bg-slate-200/50 dark:bg-slate-900/80 border-slate-300 dark:border-slate-700'
-};
-
-const SECTOR_HEADER_COLORS: Record<string, string> = {
-    'preImpressao': 'bg-purple-100/80 dark:bg-purple-900/50',
-    'impressao': 'bg-cyan-100/80 dark:bg-cyan-900/50',
-    'producao': 'bg-blue-100/80 dark:bg-blue-900/50',
-    'instalacao': 'bg-orange-100/80 dark:bg-orange-900/50',
-    'expedicao': 'bg-emerald-100/80 dark:bg-emerald-900/50',
-    'ALL': 'bg-slate-200 dark:bg-slate-800'
-};
-
+// --- SUB-COMPONENT: Scroll Button ---
 const ScrollToTopButton = ({ containerRef }: { containerRef: React.RefObject<HTMLDivElement> }) => {
     const [visible, setVisible] = useState(false);
     useEffect(() => {
@@ -340,11 +323,6 @@ const ManagementView: React.FC<ManagementViewProps> = ({
       if (order.prioridade === 'Alta') priorityBorderClass = 'border-l-red-500';
       else if (order.prioridade === 'Média') priorityBorderClass = 'border-l-blue-400';
 
-      // --- PERMISSION CHECK FOR BUTTONS (Leaders only in Management View) ---
-      const showActionButtons = false; // Buttons hidden in card for Management View (handled in modal or separate UI if requested, keeping cleaner)
-
-      const liveDuration = assignment?.startedAt ? getDuration(assignment.startedAt) : null;
-
       if (isMinimized) {
           return (
               <div 
@@ -354,10 +332,10 @@ const ManagementView: React.FC<ManagementViewProps> = ({
                   className={`bg-white dark:bg-slate-900 rounded-r-lg mb-2 shadow-sm border-l-[4px] relative group/item transition-all flex flex-col shrink-0 cursor-grab active:cursor-grabbing hover:shadow-md ${priorityBorderClass} ${isInProgress ? 'bg-amber-50/30 dark:bg-amber-900/10' : 'border-y border-r border-slate-200 dark:border-slate-700'}`}
               >
                   <div className="p-2.5 flex flex-col gap-1.5 relative">
-                      {isInProgress && liveDuration && (
+                      {isInProgress && assignment?.startedAt && (
                           <div className="absolute top-1 right-7 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-[8px] font-black px-1.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800 shadow-sm flex items-center gap-0.5 z-10 animate-pulse">
                               <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" strokeWidth="2.5"/></svg>
-                              {liveDuration}
+                              {getDuration(assignment.startedAt)}
                           </div>
                       )}
                       <div className="flex items-center justify-between">
@@ -391,14 +369,12 @@ const ManagementView: React.FC<ManagementViewProps> = ({
               className={`bg-white dark:bg-slate-900 rounded-r-lg mb-2 shadow-sm border-l-[4px] relative group/item transition-all flex flex-col shrink-0 cursor-grab active:cursor-grabbing hover:shadow-md ${priorityBorderClass} ${isInProgress ? 'bg-amber-50/30 dark:bg-amber-900/10' : 'border-y border-r border-slate-200 dark:border-slate-700'}`}
           >
               <div className="flex flex-col p-2.5 flex-1 relative">
-                  
-                  {isInProgress && liveDuration && (
+                  {isInProgress && assignment?.startedAt && (
                       <div className="absolute top-2 right-8 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-[9px] font-black px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-800 shadow-sm animate-pulse flex items-center gap-1 z-10">
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" strokeWidth="2.5"/></svg>
-                          {liveDuration}
+                          {getDuration(assignment.startedAt)}
                       </div>
                   )}
-
                   <div className="flex justify-between items-start mb-1.5 gap-2 pr-6">
                       <span className="text-sm font-[950] text-emerald-600 dark:text-emerald-400 leading-none tracking-tight">#{order.or}</span>
                       <div className="flex flex-wrap items-center justify-end gap-1 absolute top-2 right-2">
@@ -428,12 +404,8 @@ const ManagementView: React.FC<ManagementViewProps> = ({
                       ) : (
                           relevantStep && (
                             <button onClick={(e) => { e.stopPropagation(); onAssignUser(order.id, relevantStep!); }} className="flex items-center gap-1 text-[8px] font-bold text-slate-400 hover:text-blue-500 bg-slate-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-2 py-1.5 rounded-lg transition-colors border border-dashed border-slate-300 dark:border-slate-700 w-full justify-center group">
-                                {assignment?.userId ? (
-                                    <div className="w-4 h-4 rounded-full bg-blue-500 text-white flex items-center justify-center text-[6px] font-black">{assignment.userName.substring(0,2)}</div>
-                                ) : (
-                                    <svg className="w-3 h-3 text-slate-300 group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" strokeWidth="2"/></svg>
-                                )}
-                                {assignment?.userId ? `ALTERAR` : `DESIGNAR`}
+                                <svg className="w-3 h-3 text-slate-300 group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" strokeWidth="2"/></svg>
+                                {relevantStep ? `DESIGNAR ${DEPARTMENTS[relevantStep].split(' ')[0]}` : 'DESIGNAR'}
                             </button>
                           )
                       )}
@@ -461,101 +433,18 @@ const ManagementView: React.FC<ManagementViewProps> = ({
   };
 
   // --- COLUMN LAYOUT ---
-  const TeamColumn: React.FC<{ 
-      id: string; 
-      label: string; 
-      avatar: React.ReactNode; 
-      count: number; 
-      isActive: boolean; 
-      groups: { or: string; client: string; items: Order[] }[]; 
-      isLeader?: boolean;
-      sectorFilter?: string; // Prop to know which sector color to apply for backlog
-  }> = ({ id, label, avatar, count, isActive, groups, isLeader, sectorFilter }) => {
+  const TeamColumn: React.FC<{ id: string; label: string; avatar: React.ReactNode; count: number; isActive: boolean; groups: { or: string; client: string; items: Order[] }[]; isLeader?: boolean }> = ({ id, label, avatar, count, isActive, groups, isLeader }) => {
       const isCollapsed = collapsedColumns[id];
       const columnRef = useRef<HTMLDivElement>(null);
 
-      // --- STYLING LOGIC ---
-      let bgClass = '';
-      let headerBgClass = '';
-
-      if (id === 'unassigned') {
-          // Backlog Color Based on Sector
-          bgClass = SECTOR_COLORS[sectorFilter || 'ALL'];
-          headerBgClass = SECTOR_HEADER_COLORS[sectorFilter || 'ALL'];
-      } else {
-          // User Columns
-          bgClass = isLeader 
-            ? isActive ? 'bg-indigo-50/50 dark:bg-indigo-900/10 border-indigo-200 dark:border-indigo-800' : 'bg-slate-100/50 dark:bg-slate-800/30 border-slate-200 dark:border-slate-800'
-            : isActive ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800' : 'bg-slate-100/50 dark:bg-slate-800/30 border-slate-200 dark:border-slate-800';
-            
-          headerBgClass = isLeader
-            ? isActive ? 'bg-indigo-100/50 dark:bg-indigo-900/30' : ''
-            : isActive ? 'bg-emerald-100/50 dark:bg-emerald-900/30' : '';
-      }
-
-      // --- Split Groups into Running vs Pending (Only for Users) ---
-      const activeGroups: typeof groups = [];
-      const pendingGroups: typeof groups = [];
-
-      if (id !== 'unassigned') {
-          groups.forEach(group => {
-              const hasRunningItem = group.items.some(i => {
-                  const steps = ['preImpressao', 'impressao', 'producao', 'instalacao', 'expedicao'] as ProductionStep[];
-                  return steps.some(s => i.assignments?.[s]?.userId === id && i[s] === 'Em Produção');
-              });
-              if (hasRunningItem) activeGroups.push(group);
-              else pendingGroups.push(group);
-          });
-      } else {
-          pendingGroups.push(...groups);
-      }
-
-      const renderGroupList = (list: typeof groups) => {
-          return list.map(group => {
-              const isMulti = group.items.length > 1;
-              const isExpanded = expandedOrGroups[group.or];
-              const firstItem = group.items[0];
-              const activeItems = group.items.filter(i => {
-                  const steps = ['preImpressao', 'impressao', 'producao', 'instalacao', 'expedicao'] as ProductionStep[];
-                  return steps.some(s => i.assignments?.[s]?.userId === id && i[s] === 'Em Produção');
-              });
-              const isGroupActive = activeItems.length > 0;
-              
-              let priorityBorderClass = 'border-l-slate-300';
-              if (firstItem.prioridade === 'Alta') priorityBorderClass = 'border-l-red-500';
-              else if (firstItem.prioridade === 'Média') priorityBorderClass = 'border-l-blue-400';
-
-              if (!isMulti) return <OrderCard key={firstItem.id} order={firstItem} userId={id} />;
-
-              return (
-                  <div key={group.or} className="mb-2">
-                      <div onClick={() => toggleOrGroup(group.or)} className={`bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800 border-l-[4px] ${priorityBorderClass} cursor-pointer hover:shadow-md transition-all relative overflow-hidden group/stack ${isGroupActive ? 'bg-amber-50/30 dark:bg-amber-900/10' : ''}`}>
-                          <div className="absolute top-0 right-0 p-1">
-                              <div className={`p-1 rounded-full transition-transform duration-300 ${isExpanded ? 'rotate-180 bg-slate-100 dark:bg-slate-800' : 'bg-transparent'}`}><svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></div>
-                          </div>
-                          <div className="p-3">
-                              <div className="flex items-center gap-2 mb-1">
-                                  <span className="text-xs font-[950] text-emerald-600 dark:text-emerald-400">#{group.or}</span>
-                                  <div className="flex gap-1">
-                                      <span className="bg-blue-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-sm">{group.items.length} ITENS</span>
-                                      {isGroupActive && <span className="bg-amber-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-sm animate-pulse">EM USO</span>}
-                                  </div>
-                              </div>
-                              <p className="text-[10px] font-black text-slate-800 dark:text-white uppercase truncate pr-4">{group.client}</p>
-                              {!isExpanded && (
-                                  <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                                      <span className="text-[8px] font-bold text-slate-400 uppercase">Clique para ver itens</span>
-                                      <div className="flex -space-x-1">{group.items.slice(0,3).map((i, idx) => (<div key={idx} className="w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-700 border border-white dark:border-slate-800 flex items-center justify-center text-[6px] font-black text-slate-500">{idx+1}</div>))}{group.items.length > 3 && <div className="w-4 h-4 rounded-full bg-slate-100 dark:bg-slate-800 border border-white dark:border-slate-800 flex items-center justify-center text-[6px] font-black text-slate-400">+</div>}</div>
-                                  </div>
-                              )}
-                          </div>
-                          {!isExpanded && <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-slate-200 dark:via-slate-700 to-transparent opacity-50"></div>}
-                      </div>
-                      {isExpanded && (<div className="mt-2 pl-3 ml-2 border-l-2 border-slate-200 dark:border-slate-700 space-y-2 animate-in slide-in-from-left-2">{group.items.map(item => <OrderCard key={item.id} order={item} userId={id} />)}</div>)}
-                  </div>
-              );
-          });
-      };
+      // Distinct Style for Leaders vs Others
+      const bgClass = isLeader 
+        ? isActive ? 'bg-indigo-50/50 dark:bg-indigo-900/10 border-indigo-200 dark:border-indigo-800' : 'bg-slate-100/50 dark:bg-slate-800/30 border-slate-200 dark:border-slate-800'
+        : isActive ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800' : 'bg-slate-100/50 dark:bg-slate-800/30 border-slate-200 dark:border-slate-800';
+        
+      const headerBgClass = isLeader
+        ? isActive ? 'bg-indigo-100/50 dark:bg-indigo-900/30' : ''
+        : isActive ? 'bg-emerald-100/50 dark:bg-emerald-900/30' : '';
 
       if (isCollapsed) {
           // Special look for collapsed Backlog
@@ -565,7 +454,7 @@ const ManagementView: React.FC<ManagementViewProps> = ({
                     onClick={() => toggleColumn(id)}
                     onDragOver={handleDragOver}
                     onDrop={(e) => handleDrop(e, id)}
-                    className={`w-14 min-w-[3.5rem] flex-shrink-0 flex flex-col h-full items-center border-r border-slate-300 dark:border-slate-700 py-4 gap-4 cursor-pointer transition-colors ${bgClass}`}
+                    className="w-14 min-w-[3.5rem] flex-shrink-0 flex flex-col h-full items-center bg-slate-200/50 dark:bg-slate-800/50 border-r border-slate-300 dark:border-slate-700 py-4 gap-4 cursor-pointer hover:bg-slate-300/50 dark:hover:bg-slate-700/50 transition-colors"
                   >
                       <div className="w-8 h-8 rounded-lg bg-slate-400 dark:bg-slate-600 flex items-center justify-center text-white shadow-inner">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" strokeWidth="2"/></svg>
@@ -629,28 +518,50 @@ const ManagementView: React.FC<ManagementViewProps> = ({
               </div>
 
               <div ref={columnRef} className="flex-1 overflow-y-auto custom-scrollbar p-2 flex flex-col gap-2 pb-4 relative min-h-[100px]">
-                  
-                  {/* SPLIT VIEW: RUNNING TASKS AT TOP */}
-                  {id !== 'unassigned' && activeGroups.length > 0 && (
-                      <div className="mb-2">
-                          <div className="flex items-center gap-2 px-2 py-1 mb-2 bg-amber-50 dark:bg-amber-900/20 rounded-md border border-amber-100 dark:border-amber-800">
-                              <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
-                              <span className="text-[9px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest">Em Execução</span>
+                  {groups.map(group => {
+                      const isMulti = group.items.length > 1;
+                      const isExpanded = expandedOrGroups[group.or];
+                      const firstItem = group.items[0];
+                      const activeItems = group.items.filter(i => {
+                          const steps = ['preImpressao', 'impressao', 'producao', 'instalacao', 'expedicao'] as ProductionStep[];
+                          return steps.some(s => i.assignments?.[s]?.userId === id && i[s] === 'Em Produção');
+                      });
+                      const isGroupActive = activeItems.length > 0;
+                      
+                      let priorityBorderClass = 'border-l-slate-300';
+                      if (firstItem.prioridade === 'Alta') priorityBorderClass = 'border-l-red-500';
+                      else if (firstItem.prioridade === 'Média') priorityBorderClass = 'border-l-blue-400';
+
+                      if (!isMulti) return <OrderCard key={firstItem.id} order={firstItem} userId={id} />;
+
+                      return (
+                          <div key={group.or} className="mb-2">
+                              <div onClick={() => toggleOrGroup(group.or)} className={`bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800 border-l-[4px] ${priorityBorderClass} cursor-pointer hover:shadow-md transition-all relative overflow-hidden group/stack ${isGroupActive ? 'bg-amber-50/30 dark:bg-amber-900/10' : ''}`}>
+                                  <div className="absolute top-0 right-0 p-1">
+                                      <div className={`p-1 rounded-full transition-transform duration-300 ${isExpanded ? 'rotate-180 bg-slate-100 dark:bg-slate-800' : 'bg-transparent'}`}><svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></div>
+                                  </div>
+                                  <div className="p-3">
+                                      <div className="flex items-center gap-2 mb-1">
+                                          <span className="text-xs font-[950] text-emerald-600 dark:text-emerald-400">#{group.or}</span>
+                                          <div className="flex gap-1">
+                                              <span className="bg-blue-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-sm">{group.items.length} ITENS</span>
+                                              {isGroupActive && <span className="bg-amber-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-sm animate-pulse">EM USO</span>}
+                                          </div>
+                                      </div>
+                                      <p className="text-[10px] font-black text-slate-800 dark:text-white uppercase truncate pr-4">{group.client}</p>
+                                      {!isExpanded && (
+                                          <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                                              <span className="text-[8px] font-bold text-slate-400 uppercase">Clique para ver itens</span>
+                                              <div className="flex -space-x-1">{group.items.slice(0,3).map((i, idx) => (<div key={idx} className="w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-700 border border-white dark:border-slate-800 flex items-center justify-center text-[6px] font-black text-slate-500">{idx+1}</div>))}{group.items.length > 3 && <div className="w-4 h-4 rounded-full bg-slate-100 dark:bg-slate-800 border border-white dark:border-slate-800 flex items-center justify-center text-[6px] font-black text-slate-400">+</div>}</div>
+                                          </div>
+                                      )}
+                                  </div>
+                                  {!isExpanded && <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-slate-200 dark:via-slate-700 to-transparent opacity-50"></div>}
+                              </div>
+                              {isExpanded && (<div className="mt-2 pl-3 ml-2 border-l-2 border-slate-200 dark:border-slate-700 space-y-2 animate-in slide-in-from-left-2">{group.items.map(item => <OrderCard key={item.id} order={item} userId={id} />)}</div>)}
                           </div>
-                          {renderGroupList(activeGroups)}
-                          {pendingGroups.length > 0 && <div className="h-px bg-slate-200 dark:bg-slate-700 my-3 mx-2"></div>}
-                      </div>
-                  )}
-
-                  {/* PENDING / QUEUE TASKS */}
-                  {id !== 'unassigned' && pendingGroups.length > 0 && activeGroups.length > 0 && (
-                      <div className="px-2 py-1 mb-1">
-                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Fila de Trabalho</span>
-                      </div>
-                  )}
-
-                  {renderGroupList(id === 'unassigned' ? groups : pendingGroups)}
-
+                      );
+                  })}
                   {groups.length === 0 && <div className="py-6 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800/20 mt-4"><p className="text-[8px] text-slate-400 uppercase font-bold opacity-50">Arraste aqui para atribuir</p></div>}
                   <ScrollToTopButton containerRef={columnRef} />
               </div>
@@ -735,7 +646,7 @@ const ManagementView: React.FC<ManagementViewProps> = ({
 
       {/* Main Board */}
       <div ref={boardRef} className="flex-1 flex overflow-x-auto overflow-y-hidden px-0 pt-0 md:px-4 md:pt-4 pb-0 gap-3 md:gap-4 custom-scrollbar items-stretch bg-slate-50/50 dark:bg-slate-900/50 scroll-smooth">
-          {/* Unassigned Column (Backlog) - Passes the current sector filter for styling */}
+          {/* Unassigned Column (Separate & Collapsible by default) */}
           {(viewSectorFilter !== 'ALL') && (
              <TeamColumn 
                 id="unassigned" 
@@ -744,7 +655,6 @@ const ManagementView: React.FC<ManagementViewProps> = ({
                 count={kanbanData['unassigned']?.flatMap(g => g.items).length || 0}
                 isActive={false}
                 groups={kanbanData['unassigned'] || []}
-                sectorFilter={viewSectorFilter}
              />
           )}
 
