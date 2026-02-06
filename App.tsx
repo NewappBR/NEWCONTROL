@@ -57,8 +57,8 @@ const App: React.FC = () => {
       reminderEnabled: false
   });
 
-  // Controls for Floating Dock
-  const [showToolsRow, setShowToolsRow] = useState(true);
+  // Controls for Floating Dock (Unified)
+  const [isDockExpanded, setIsDockExpanded] = useState(true);
 
   // --- CARREGAMENTO DE DADOS (Híbrido) ---
   const fetchData = async () => {
@@ -610,7 +610,7 @@ const App: React.FC = () => {
                   className={`p-2 rounded-lg transition-all ${activeTab === 'KANBAN' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
                   title="Kanban"
                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 00-2-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                </button>
                <button 
                   onClick={() => setActiveTab('CALENDÁRIO')}
@@ -684,7 +684,7 @@ const App: React.FC = () => {
                                <span className="text-3xl font-black text-red-500 leading-none">{stats.atrasadas}</span>
                             </div>
                             <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col items-center justify-center group hover:scale-[1.02] transition-transform cursor-pointer" onClick={() => setShowCreateAlert(true)}>
-                               <div className="flex flex-col items-center gap-2">
+                                <div className="flex flex-col items-center gap-2">
                                    <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-400 group-hover:text-blue-500 flex items-center justify-center transition-colors">
                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" strokeWidth="2.5"/></svg>
                                    </div>
@@ -807,77 +807,79 @@ const App: React.FC = () => {
         {(activeTab === 'OPERACIONAL' || activeTab === 'CONCLUÍDAS' || activeTab === 'CALENDÁRIO') && (
             <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center animate-in slide-in-from-bottom-10 duration-500 w-full max-w-sm pointer-events-none gap-2">
                 
-                {/* 1. Main Navigation Pill (Dark) */}
-                <div className="pointer-events-auto bg-slate-900/95 dark:bg-black/90 backdrop-blur-xl p-1.5 rounded-full shadow-2xl border border-slate-700/50 ring-1 ring-white/10 flex items-center relative">
-                    {/* Production Button */}
-                    <button 
-                        onClick={() => setActiveTab('OPERACIONAL')} 
-                        className={`
-                            pl-6 pr-8 py-3 rounded-full font-black uppercase text-[10px] tracking-widest transition-all
-                            ${activeTab === 'OPERACIONAL' 
-                                ? 'bg-emerald-600 text-white shadow-lg' 
-                                : 'text-slate-400 hover:text-white hover:bg-white/5'}
-                        `}
-                    >
-                        Produção
-                    </button>
+                {isDockExpanded ? (
+                    <>
+                        {/* 1. Main Navigation Pill (Dark) */}
+                        <div className="pointer-events-auto bg-slate-900/95 dark:bg-black/90 backdrop-blur-xl p-1.5 rounded-full shadow-2xl border border-slate-700/50 ring-1 ring-white/10 flex items-center relative animate-in fade-in zoom-in-95">
+                            {/* Production Button */}
+                            <button 
+                                onClick={() => setActiveTab('OPERACIONAL')} 
+                                className={`
+                                    pl-6 pr-8 py-3 rounded-full font-black uppercase text-[10px] tracking-widest transition-all
+                                    ${activeTab === 'OPERACIONAL' 
+                                        ? 'bg-emerald-600 text-white shadow-lg' 
+                                        : 'text-slate-400 hover:text-white hover:bg-white/5'}
+                                `}
+                            >
+                                Produção
+                            </button>
 
-                    {/* QR Scanner Center Button (Floating Overlay) */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                        <button 
-                            onClick={() => setShowScanner(true)}
-                            className="w-14 h-14 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform active:scale-95 border-[4px] border-[#f8fafc] dark:border-slate-950 z-20 group relative"
-                            title="Ler QR Code"
-                        >
-                            <svg className="w-6 h-6 group-hover:text-emerald-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v1m6 11h2m-6 0h-2v4h2v-4zM6 8v4h4V8H6zm14 10.5c0 .276-.224.5-.5.5h-3a.5.5 0 01-.5-.5v-3a.5.5 0 01.5-.5h3a.5.5 0 01.5.5v3z" strokeWidth="2.5"/></svg>
-                        </button>
-                    </div>
+                            {/* QR Scanner Center Button (Floating Overlay) */}
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                                <button 
+                                    onClick={() => setShowScanner(true)}
+                                    className="w-14 h-14 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform active:scale-95 border-[4px] border-[#f8fafc] dark:border-slate-950 z-20 group relative"
+                                    title="Ler QR Code"
+                                >
+                                    <svg className="w-6 h-6 group-hover:text-emerald-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v1m6 11h2m-6 0h-2v4h2v-4zM6 8v4h4V8H6zm14 10.5c0 .276-.224.5-.5.5h-3a.5.5 0 01-.5-.5v-3a.5.5 0 01.5-.5h3a.5.5 0 01.5.5v3z" strokeWidth="2.5"/></svg>
+                                </button>
+                            </div>
 
-                    {/* Spacer for Center Button */}
-                    <div className="w-10"></div>
+                            {/* Spacer for Center Button */}
+                            <div className="w-10"></div>
 
-                    {/* Archive Button */}
-                    <button 
-                        onClick={() => setActiveTab('CONCLUÍDAS')} 
-                        className={`
-                            pl-8 pr-6 py-3 rounded-full font-black uppercase text-[10px] tracking-widest transition-all
-                            ${activeTab === 'CONCLUÍDAS' 
-                                ? 'bg-slate-700 text-white shadow-lg' 
-                                : 'text-slate-400 hover:text-white hover:bg-white/5'}
-                        `}
-                    >
-                        Arquivo
-                    </button>
-                </div>
+                            {/* Archive Button */}
+                            <button 
+                                onClick={() => setActiveTab('CONCLUÍDAS')} 
+                                className={`
+                                    pl-8 pr-6 py-3 rounded-full font-black uppercase text-[10px] tracking-widest transition-all
+                                    ${activeTab === 'CONCLUÍDAS' 
+                                        ? 'bg-slate-700 text-white shadow-lg' 
+                                        : 'text-slate-400 hover:text-white hover:bg-white/5'}
+                                `}
+                            >
+                                Arquivo
+                            </button>
+                        </div>
 
-                {/* 2. Tools Row (Scrollable Actions - Light/Glassy) */}
-                {showToolsRow ? (
-                    <div className="pointer-events-auto flex items-center gap-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-1.5 rounded-2xl shadow-lg border border-slate-200/50 dark:border-slate-700/50 animate-in slide-in-from-bottom-2 fade-in max-w-full overflow-x-auto custom-scrollbar no-scrollbar">
-                        
-                        {/* Quick Filters/Actions */}
-                        <button onClick={() => tableRef.current?.expandOrders()} className="w-10 h-10 shrink-0 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 rounded-xl flex items-center justify-center transition-all shadow-sm" title="Ver Lista"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
-                        <button onClick={() => tableRef.current?.expandAll()} className="w-10 h-10 shrink-0 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 rounded-xl flex items-center justify-center transition-all shadow-sm" title="Expandir Tudo"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 13l-7 7-7-7m14-8l-7 7-7-7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
-                        <button onClick={() => tableRef.current?.collapseAll()} className="w-10 h-10 shrink-0 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 rounded-xl flex items-center justify-center transition-all shadow-sm" title="Recolher Tudo"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 15l7-7 7 7m-14-8l7-7 7 7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
-                        
-                        <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1 shrink-0"></div>
+                        {/* 2. Tools Row (Scrollable Actions - Light/Glassy) */}
+                        <div className="pointer-events-auto flex items-center gap-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-1.5 rounded-2xl shadow-lg border border-slate-200/50 dark:border-slate-700/50 animate-in slide-in-from-bottom-2 fade-in max-w-full overflow-x-auto custom-scrollbar no-scrollbar">
+                            
+                            {/* Quick Filters/Actions */}
+                            <button onClick={() => tableRef.current?.expandOrders()} className="w-10 h-10 shrink-0 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 rounded-xl flex items-center justify-center transition-all shadow-sm" title="Ver Lista"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+                            <button onClick={() => tableRef.current?.expandAll()} className="w-10 h-10 shrink-0 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 rounded-xl flex items-center justify-center transition-all shadow-sm" title="Expandir Tudo"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 13l-7 7-7-7m14-8l-7 7-7-7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+                            <button onClick={() => tableRef.current?.collapseAll()} className="w-10 h-10 shrink-0 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 rounded-xl flex items-center justify-center transition-all shadow-sm" title="Recolher Tudo"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 15l7-7 7 7m-14-8l7-7 7 7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+                            
+                            <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1 shrink-0"></div>
 
-                        <button onClick={() => tableRef.current?.expandToday()} className="w-10 h-10 shrink-0 bg-slate-100 dark:bg-slate-800 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-xl flex items-center justify-center transition-all font-black text-[9px] shadow-sm" title="Hoje">HOJE</button>
-                        <button onClick={() => tableRef.current?.expandWeeks()} className="w-10 h-10 shrink-0 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700 rounded-xl flex items-center justify-center transition-all font-black text-[9px] shadow-sm" title="Semana">SEM</button>
-                        
-                        <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1 shrink-0"></div>
+                            <button onClick={() => tableRef.current?.expandToday()} className="w-10 h-10 shrink-0 bg-slate-100 dark:bg-slate-800 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-xl flex items-center justify-center transition-all font-black text-[9px] shadow-sm" title="Hoje">HOJE</button>
+                            <button onClick={() => tableRef.current?.expandWeeks()} className="w-10 h-10 shrink-0 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700 rounded-xl flex items-center justify-center transition-all font-black text-[9px] shadow-sm" title="Semana">SEM</button>
+                            
+                            <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1 shrink-0"></div>
 
-                        <button onClick={handleScrollToTop} className="w-10 h-10 shrink-0 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700 rounded-xl flex items-center justify-center transition-all shadow-sm" title="Topo"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 10l7-7m0 0l7 7m-7-7v18" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
-                        
-                        {/* Hide Tools Toggle */}
-                        <button onClick={() => setShowToolsRow(false)} className="w-8 h-8 shrink-0 rounded-full bg-red-100 dark:bg-red-900/20 text-red-500 hover:bg-red-500 hover:text-white flex items-center justify-center transition-all ml-1"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
-                    </div>
+                            <button onClick={handleScrollToTop} className="w-10 h-10 shrink-0 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700 rounded-xl flex items-center justify-center transition-all shadow-sm" title="Topo"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 10l7-7m0 0l7 7m-7-7v18" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+                            
+                            {/* Hide Tools Toggle (Collapses EVERYTHING) */}
+                            <button onClick={() => setIsDockExpanded(false)} className="w-8 h-8 shrink-0 rounded-full bg-red-100 dark:bg-red-900/20 text-red-500 hover:bg-red-500 hover:text-white flex items-center justify-center transition-all ml-1"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+                        </div>
+                    </>
                 ) : (
-                    // Show Tools Trigger (Small chevron)
+                    // Show Tools Trigger (Small chevron) - Opens EVERYTHING
                     <button 
-                        onClick={() => setShowToolsRow(true)} 
-                        className="pointer-events-auto mt-1 w-8 h-6 bg-slate-900/50 hover:bg-slate-900 text-white/50 hover:text-white rounded-b-xl flex items-center justify-center transition-all"
+                        onClick={() => setIsDockExpanded(true)} 
+                        className="pointer-events-auto mt-1 w-10 h-8 bg-slate-900/80 hover:bg-slate-900 backdrop-blur-md text-white rounded-full flex items-center justify-center transition-all shadow-lg hover:scale-110 active:scale-95"
                     >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                     </button>
                 )}
             </div>

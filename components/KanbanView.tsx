@@ -83,7 +83,7 @@ const ScrollToTopButton = ({ containerRef }: { containerRef: React.RefObject<HTM
 };
 
 // ... (KanbanColumn Component) ...
-const KanbanColumn = ({ col, groups, isLocked, isMySector, isCollapsed, mobileSelectedCol, hasMyPending, expandedOrGroups, toggleOrGroup, toggleColumnCollapse, handleFocusColumn, onToggleColumnCards, renderCard }: any) => {
+const KanbanColumn = ({ col, groups, isLocked, isMySector, isCollapsed, mobileSelectedCol, hasMyPending, expandedOrGroups, toggleOrGroup, toggleColumnCollapse, handleFocusColumn, onToggleColumnCards, renderCard, onDrop, onDragOver }: any) => {
     const columnRef = useRef<HTMLDivElement>(null);
     const isMobileVisible = mobileSelectedCol === col.id;
     let widthClass = isCollapsed ? 'w-14 min-w-[3.5rem]' : isLocked ? 'min-w-[260px] w-[260px]' : 'min-w-[340px] w-[380px]';
@@ -97,7 +97,11 @@ const KanbanColumn = ({ col, groups, isLocked, isMySector, isCollapsed, mobileSe
 
     if (effectivelyCollapsed) {
         return (
-            <div className="w-14 min-w-[3.5rem] h-full flex flex-col items-center bg-slate-100 dark:bg-slate-800/50 md:rounded-t-2xl border-x border-t border-slate-200 dark:border-slate-800 transition-all py-4 gap-4 relative">
+            <div 
+                className="w-14 min-w-[3.5rem] h-full flex flex-col items-center bg-slate-100 dark:bg-slate-800/50 md:rounded-t-2xl border-x border-t border-slate-200 dark:border-slate-800 transition-all py-4 gap-4 relative"
+                onDrop={onDrop}
+                onDragOver={onDragOver}
+            >
                 {hasMyPending && <div className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-md border border-white z-10"></div>}
                 <button onClick={() => { if (mobileSelectedCol) handleFocusColumn(col.id); else toggleColumnCollapse(col.id); }} className="w-8 h-8 rounded-full bg-white dark:bg-slate-700 shadow-sm flex items-center justify-center text-slate-500 hover:text-emerald-500 transition-colors active:scale-95 group">
                     <svg className="w-4 h-4 rotate-90 transition-transform group-hover:translate-y-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -112,7 +116,11 @@ const KanbanColumn = ({ col, groups, isLocked, isMySector, isCollapsed, mobileSe
         );
     }
     return (
-        <div className={`${widthClass} flex-shrink-0 flex flex-col h-full md:rounded-t-2xl border-x border-t border-b-0 ${bgClass} transition-all duration-300 relative group/column`}>
+        <div 
+            className={`${widthClass} flex-shrink-0 flex flex-col h-full md:rounded-t-2xl border-x border-t border-b-0 ${bgClass} transition-all duration-300 relative group/column`}
+            onDrop={onDrop}
+            onDragOver={onDragOver}
+        >
             <div className={`p-3 border-b border-inherit flex justify-between items-center md:rounded-t-2xl ${isMySector ? 'bg-emerald-100/50 dark:bg-emerald-900/30' : ''}`}>
                 <div className="flex items-center gap-3">
                     <button onClick={() => handleFocusColumn(col.id)} className={`p-1.5 rounded-full transition-all ${mobileSelectedCol === col.id ? 'bg-blue-500 text-white animate-pulse' : 'text-slate-400 hover:text-blue-500 hover:bg-blue-50'}`} title={mobileSelectedCol ? "Sair do Foco" : "Focar nesta Coluna"}>
@@ -129,7 +137,7 @@ const KanbanColumn = ({ col, groups, isLocked, isMySector, isCollapsed, mobileSe
                     {mobileSelectedCol === col.id && <button onClick={() => handleFocusColumn(col.id)} className="bg-red-500 text-white text-[8px] font-black px-2 py-1 rounded uppercase">Sair Foco</button>}
                 </div>
             </div>
-            <div ref={columnRef} className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-3 pb-4 relative">
+            <div ref={columnRef} className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-3 pb-4 relative min-h-[200px]">
                 {groups.map((group: any) => {
                     // ... (Card Group rendering logic) ...
                     const isMultiItem = group.items.length > 1;
@@ -188,6 +196,7 @@ const KanbanColumn = ({ col, groups, isLocked, isMySector, isCollapsed, mobileSe
                         </div>
                     );
                 })}
+                {groups.length === 0 && <div className="flex flex-col items-center justify-center h-32 opacity-20"><p className="text-[8px] font-black text-slate-400 uppercase">Vazio</p></div>}
             </div>
             <ScrollToTopButton containerRef={columnRef} />
         </div>
@@ -361,7 +370,7 @@ const KanbanView = forwardRef<KanbanViewHandle, KanbanViewProps>(({
   const handleCollapseAllCards = () => { const allItems = orders.map(o => o.id); const newState: Record<string, boolean> = {}; allItems.forEach(id => newState[id] = true); setMinimizedItems(newState); };
   const handleExpandAllCards = () => { setMinimizedItems({}); };
   const handleExpandAll = () => { setCollapsedColumns({}); setFocusedColumnId('all'); setMobileSelectedCol(null); handleExpandAllCards(); };
-  const handleCollapseAll = () => { const allCollapsed = activeColumns.reduce((acc, col) => ({...acc, [col.id]: true}), {}); setCollapsedColumns(allCollapsed); setFocusedColumnId('all'); };
+  const handleCollapseAll = () => { const allCollapsed = activeColumns.reduce((acc, col) => ({...acc, [col.id]: true}), {}); setCollapsedColumns(allCollapsed); setFocusedColumnId('all'); setMobileSelectedCol(null); };
   const handleFocusColumn = (colId: string) => { if (focusedColumnId === colId) { setFocusedColumnId('all'); setMobileSelectedCol(null); setCollapsedColumns({}); } else { setFocusedColumnId(colId); setMobileSelectedCol(colId); const allOtherCollapsed = activeColumns.reduce((acc, col) => ({ ...acc, [col.id]: col.id !== colId }), {}); setCollapsedColumns(allOtherCollapsed); } };
 
   const expandAllColumns = () => { setCollapsedColumns({}); setFocusedColumnId('all'); setMobileSelectedCol(null); };
@@ -369,7 +378,7 @@ const KanbanView = forwardRef<KanbanViewHandle, KanbanViewProps>(({
 
   useImperativeHandle(ref, () => ({ switchToMyTasks: () => { setViewMode('MY_TASKS'); }, expandAll: handleExpandAll, collapseAll: handleCollapseAll }));
 
-  // --- DRAG AND DROP HANDLERS ---
+  // --- DRAG AND DROP HANDLERS (UPDATED) ---
   const handleDragStart = (e: React.DragEvent, order: Order) => {
       e.dataTransfer.setData("orderId", order.id);
       e.dataTransfer.effectAllowed = "move";
@@ -380,10 +389,45 @@ const KanbanView = forwardRef<KanbanViewHandle, KanbanViewProps>(({
       e.dataTransfer.dropEffect = "move";
   };
 
-  const handleDrop = (e: React.DragEvent, targetUserId: string) => {
+  const handleDrop = (e: React.DragEvent, targetColumnId: string) => {
       e.preventDefault();
-      // Since this KanbanView handles the MY_TASKS view, drag and drop is not enabled here for assignments
-      // ManagementView handles team assignments.
+      // Logic for BOARD view drag and drop (Changing Status)
+      if (viewMode === 'BOARD') {
+          const orderId = e.dataTransfer.getData("orderId");
+          if (!orderId) return;
+
+          // Find Target Step from Column ID
+          const targetCol = boardColumns.find(c => c.id === targetColumnId);
+          if (!targetCol || !targetCol.step) return; // 'done' or invalid
+
+          const targetStep = targetCol.step;
+          const order = orders.find(o => o.id === orderId);
+          if (!order) return;
+
+          // Check permissions
+          if (currentUser?.role !== 'Admin' && currentUser?.departamento !== 'Geral' && currentUser?.departamento !== targetStep) {
+              alert(`Você não tem permissão para mover itens para o setor ${targetStep}.`);
+              return;
+          }
+
+          // Logic: 
+          // 1. Set NEW sector status to 'Em Produção'
+          // 2. Set PREVIOUS sector status to 'Concluído' (if applicable)
+          
+          const steps: ProductionStep[] = ['preImpressao', 'impressao', 'producao', 'instalacao', 'expedicao'];
+          const targetIndex = steps.indexOf(targetStep);
+          
+          // Update Target
+          onUpdateStatus(orderId, targetStep, 'Em Produção');
+
+          // Auto-complete previous step if valid
+          if (targetIndex > 0) {
+              const prevStep = steps[targetIndex - 1];
+              if (order[prevStep] !== 'Concluído') {
+                  onUpdateStatus(orderId, prevStep, 'Concluído');
+              }
+          }
+      }
   };
 
   // --- CARD COMPONENT ---
@@ -414,7 +458,7 @@ const KanbanView = forwardRef<KanbanViewHandle, KanbanViewProps>(({
       if (isMinimized) {
           return (
               <div 
-                  draggable={true}
+                  draggable={viewMode === 'BOARD'} // Enable drag only in board for status change
                   onDragStart={(e) => handleDragStart(e, order)}
                   onClick={(e) => toggleMinimize(order.id, e)}
                   className={`bg-white dark:bg-slate-900 rounded-r-lg mb-2 shadow-sm border-l-[4px] relative group/item transition-all flex flex-col shrink-0 cursor-grab active:cursor-grabbing hover:shadow-md ${priorityBorderClass} ${isInProgress ? 'bg-amber-50/30 dark:bg-amber-900/10' : 'border-y border-r border-slate-200 dark:border-slate-700'}`}
@@ -451,7 +495,7 @@ const KanbanView = forwardRef<KanbanViewHandle, KanbanViewProps>(({
 
       return (
           <div 
-              draggable={true}
+              draggable={viewMode === 'BOARD'} // Enable drag only in board for status change
               onDragStart={(e) => handleDragStart(e, order)}
               onClick={(e) => toggleMinimize(order.id, e)}
               className={`bg-white dark:bg-slate-900 rounded-r-lg mb-2 shadow-sm border-l-[4px] relative group/item transition-all flex flex-col shrink-0 cursor-grab active:cursor-grabbing hover:shadow-md ${priorityBorderClass} ${isInProgress ? 'bg-amber-50/30 dark:bg-amber-900/10' : 'border-y border-r border-slate-200 dark:border-slate-700'}`}
@@ -548,6 +592,31 @@ const KanbanView = forwardRef<KanbanViewHandle, KanbanViewProps>(({
       return <OrderCard key={item.id} order={item} userId={currentUser?.id || ''} col={col} />;
   };
 
+  if (viewMode === 'TEAM') {
+      if (!currentUser) return null;
+      return (
+          <div className="absolute inset-0 animate-in fade-in duration-300 z-10 bg-slate-50 dark:bg-slate-900/50">
+              <ManagementView 
+                  orders={orders}
+                  users={users}
+                  currentUser={currentUser}
+                  onAssignUser={(orderId, step, userId) => {
+                      if (userId) {
+                          setAssignmentModal({ isOpen: true, orderId, step, userId });
+                      } else {
+                          if (onAssignUser) onAssignUser(orderId, step, '', 'Removido via Gestão', currentUser.nome);
+                      }
+                  }}
+                  onEditOrder={onEditOrder}
+                  onShowQR={onShowQR}
+                  onShowAttachment={onShowAttachment}
+                  onShowTechSheet={onShowTechSheet}
+                  onClose={() => setViewMode('BOARD')}
+              />
+          </div>
+      );
+  }
+
   return (
     <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900/50 relative overflow-hidden">
       
@@ -595,7 +664,7 @@ const KanbanView = forwardRef<KanbanViewHandle, KanbanViewProps>(({
                   {canAccessTeamView && (
                       <button 
                           onClick={() => setViewMode('TEAM')}
-                          className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all whitespace-nowrap ${viewMode === 'TEAM' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                          className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all whitespace-nowrap text-slate-400 hover:text-white"
                       >
                           Gestão de Equipe
                       </button>
@@ -621,51 +690,28 @@ const KanbanView = forwardRef<KanbanViewHandle, KanbanViewProps>(({
           </div>
       </div>
 
-      {/* Main Board Container - Handles both Kanban and ManagementView seamless swap */}
-      <div className="flex-1 relative overflow-hidden">
-          {viewMode === 'TEAM' && currentUser ? (
-              <div className="absolute inset-0 animate-in fade-in duration-300 z-10 bg-slate-50 dark:bg-slate-900/50">
-                  <ManagementView 
-                      orders={orders}
-                      users={users}
-                      currentUser={currentUser}
-                      onAssignUser={(orderId, step, userId) => {
-                          if (userId) {
-                              setAssignmentModal({ isOpen: true, orderId, step, userId });
-                          } else {
-                              if (onAssignUser) onAssignUser(orderId, step, '', 'Removido via Gestão', currentUser.nome);
-                          }
-                      }}
-                      onEditOrder={onEditOrder}
-                      onShowQR={onShowQR}
-                      onShowAttachment={onShowAttachment}
-                      onShowTechSheet={onShowTechSheet}
-                      onClose={() => setViewMode('BOARD')}
-                  />
-              </div>
-          ) : (
-              <div ref={boardRef} className="absolute inset-0 flex overflow-x-auto overflow-y-hidden px-0 pt-0 md:px-4 md:pt-4 pb-0 gap-3 md:gap-4 custom-scrollbar items-stretch bg-slate-50/50 dark:bg-slate-900/50 scroll-smooth animate-in fade-in duration-300">
-                  {activeColumns.map(col => (
-                      <KanbanColumn
-                          key={col.id}
-                          col={col}
-                          groups={groupedData[col.id]}
-                          isLocked={isColumnLocked(col.step)}
-                          isMySector={activeSector === col.step}
-                          isCollapsed={collapsedColumns[col.id]}
-                          mobileSelectedCol={mobileSelectedCol}
-                          hasMyPending={false} 
-                          expandedOrGroups={expandedOrGroups}
-                          toggleOrGroup={toggleOrGroup}
-                          toggleColumnCollapse={toggleColumnCollapse}
-                          handleFocusColumn={handleFocusColumn}
-                          onToggleColumnCards={onToggleColumnCards}
-                          renderCard={renderCard}
-                      />
-                  ))}
-                  <ScrollToTopButton containerRef={boardRef} />
-              </div>
-          )}
+      {/* Main Board */}
+      <div ref={boardRef} className="flex-1 flex overflow-x-auto overflow-y-hidden px-0 pt-0 md:px-4 md:pt-4 pb-0 gap-3 md:gap-4 custom-scrollbar items-stretch bg-slate-50/50 dark:bg-slate-900/50 scroll-smooth">
+          {activeColumns.map(col => (
+              <KanbanColumn
+                  key={col.id}
+                  col={col}
+                  groups={groupedData[col.id]}
+                  isLocked={isColumnLocked(col.step)}
+                  isMySector={activeSector === col.step}
+                  isCollapsed={collapsedColumns[col.id]}
+                  mobileSelectedCol={mobileSelectedCol}
+                  hasMyPending={false} 
+                  expandedOrGroups={expandedOrGroups}
+                  toggleOrGroup={toggleOrGroup}
+                  toggleColumnCollapse={toggleColumnCollapse}
+                  handleFocusColumn={handleFocusColumn}
+                  onToggleColumnCards={onToggleColumnCards}
+                  renderCard={renderCard}
+                  onDrop={(e: React.DragEvent) => handleDrop(e, col.id)}
+                  onDragOver={handleDragOver}
+              />
+          ))}
       </div>
 
       {/* Assignment Modal */}
